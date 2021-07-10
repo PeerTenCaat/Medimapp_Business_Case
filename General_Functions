@@ -1,0 +1,901 @@
+#############################
+###                       ###
+###   GENERAL FUNCTIONS   ###
+###                       ###
+#############################
+
+# In this file are all general functions that do not belong to a specific approach.
+# To perform a function, all other functions need to be commented.
+
+##########################
+#   Importing Packages   #
+##########################
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from datetime import datetime
+import Peer_Econometrics as PE #This is my own file of statistical functions
+import math
+import scipy
+from scipy.stats import t
+from dateutil.relativedelta import relativedelta
+
+# List of departments belonging to the different diganoses:
+BORSTKANKERAFDELINGEN = ["RADIOLOGIE J", "CHIRURGIE", "ONCOLOGIE", "CARDIOLOGIE", "CENTRALE APOTHEEK", "DIETETIEK", "PLASTISCHE CHIRURGIE", "KLINISCHE GENETICA", "MEDISCHE FOTOGRAFIE", "MEDISCHE PSYCHOLOGIE", "ECHOGRAFIE CARDIOLOGIE", "MAATSCHAPPELIJK WERK", "NUCLEAIRE GENEESKUNDE", "PREOPERATIEVE SCREENING (POS)"]
+DARMKANKERAFDELINGEN = ["CHIRURGIE", "DIETETIEK", "DSNY", "ERGOTHERAPIE", "FUNCTIE SCOPIE", "FYSIOTHERAPIE", "GERIATRIE", "KMDL", "MDL", "MEDISCHE PSYCHOLOGIE", "ONCOLOGIE", "PREOPERATIEVE SCREENING (POS)", "RADIOLOGIE J", "UROLOGIE", "WEC"]
+STAARAFDELINGEN = ["CENTRALE APOTHEEK", "OOGHEELKUNDE", "PREOPERATIEVE SCREENING"]
+
+##########################################
+#   Functions used throughout the file   #
+##########################################
+
+def filterCare(Data, IsCare = "0", inplace=True):  # Drops all logins in pathways where the patient didn't log in themselves.
+    indexNames = Data[Data.ISCAREPROVIDER != IsCare].index
+    Data.drop(indexNames, inplace = True)
+    if inplace:
+        Data.reset_index(drop=True, inplace=inplace)
+    else: return Data.reset_index(drop=True, inplace=inplace)
+
+def dropTrial(Data, ip=True):  # Drops all logins by "Trial" patients from pathways.
+    todrop = []
+    for i in range(len(Data)):
+        if(Data.PATIENTNUMBER[i][0] == "T" or Data.PATIENTNUMBER[i][0] == "t"):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+def DropNotRelevant(Data, patientlist, ip=True):  # Drops all rows from data belonging to patients in the patientlist.
+    todrop = []
+    for i in range(len(Data)):
+        if(Data.PATIENTNUMBER[i] not in patientlist):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+def DropNietVoldaan(Data, ip=True):  # Drops appointments that were not completed from the appointments data set.
+    todrop = []
+    for i in range(len(Data)):
+        if(Data.VOLDAAN[i] == "N"):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+def DropNoPatient(Data, ip=True):  # Drops appointments from the appointments set that were without a patient.
+    todrop = []
+    for i in range(len(Data)):
+        if(Data.NOPATIENT[i] == "1"):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+def Is_Consult(String):  # Function that checks whether an appointment was a consultation.
+    if(String[:2] == "TC"):
+        return True
+    if (String[:2] == "BC"):
+        return True
+    if (String[:3] == "UIT"):
+        return True
+    if (String[:3] == "BEL"):
+        return True
+    if (String[:3] == "WEB"):
+        return True
+    if (String[:2] == "VC"):
+        return True
+    if (String[:2] == "VL"):
+        return True
+    if (String == "VRAAG"):
+        return True
+    if (String == "OVERIG"):
+        return True
+    if (String[:5] == "VOORL"):
+        return True
+    if (String[:2] == "CP"):
+        return True
+    return False
+
+def DropNoConsult(Data, ip=True):  # Function that drops all appointments that are not consultations.
+    todrop = []
+    for i in range(len(Data)):
+        if(not Is_Consult(Data.CODE[i])):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+def Is_BelConsult(String):  # Function that checks whether an appointment was a phone consultation.
+    if(String[:2] == "TC"):
+        return True
+    if (String[:2] == "BC"):
+        return True
+    if (String[:3] == "UIT"):
+        return True
+    if (String[:3] == "BEL"):
+        return True
+    if (String[:3] == "WEB"):
+        return True
+    if (String[:2] == "VC"):
+        return True
+    return False
+
+def DropNoBelConsult(Data, ip=True):  # Function that drops all appointments that are not phone consultations.
+    todrop = []
+    for i in range(len(Data)):
+        if(not Is_BelConsult(Data.CODE[i])):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+def Is_Controle(String):  # Function that checks whether an appointment was a check-up.
+    if (String[:2] == "CP"):
+        return True
+    return False
+
+def DropNoControle(Data, ip=True):  # Function that drops all appointments that are not a check-up.
+    todrop = []
+    for i in range(len(Data)):
+        if(not Is_Controle(Data.CODE[i])):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+def DropFouteAfdeling(Data, AfdelingList, ip=True):  # Function that drops all appointments that do not belong to the departments specified above for a certain diagnosis.
+    todrop = []
+    for i in range(len(Data)):
+        if(Data.AFDELING[i] not in AfdelingList):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+def ToDateTime(Statistics):  # Function that turns the datetime in statistics into the actual datetime data type.
+    for i in range(len(Statistics.DATETIME)):
+        print(i)
+        D = Statistics.DATETIME[i][11:]
+        d = datetime.strptime(D, "%H:%M:%S.%f")
+        Statistics.DATETIME[i] = d
+
+def DayDifference(DateTimestr1, DateTimestr2):  # Function that returns the number of days between two dates.
+    D1 = DateTimestr1[:10]
+    D2 = DateTimestr2[:10]
+    d1 = datetime.strptime(D1, "%Y-%m-%d")
+    d2 = datetime.strptime(D2, "%Y-%m-%d")
+    return abs((d2-d1).days)
+
+def MeanDayDifference(DateTimeList):  # Function that returns the mean number of days between appointments.
+    Number = 0
+    Total = 0
+    for i in range(1, len(DateTimeList)):
+        x = abs((DateTimeList[i] - DateTimeList[i-1]).days)
+        if (x>0):
+            Total += x
+            Number += 1
+    if (Number > 0):
+        return Total/Number
+    return 0
+
+def StartedAfter(Afspraken, Patientnumber, DateTime):  # Function that checks whether a certain appointment was after a certain datetime.
+    for i in range(len(Afspraken.PATIENTNUMBER)):
+        if (Afspraken.PATIENTNUMBER[i] == Patientnumber and Afspraken.DATETIME[i] < DateTime):
+            return False
+    return True
+
+def EndedBefore(Afspraken, Patientnumber, DateTime):  # Function that checks whether a certain appointment was before a certain datetime.
+    for i in range(len(Afspraken.PATIENTNUMBER)):
+        if (Afspraken.PATIENTNUMBER[i] == Patientnumber and Afspraken.DATETIME[i] >= DateTime):
+            return False
+    return True
+
+def DropBeforeDate(Overzicht, Afspraken, DateTime, ip = True):  # Function that drops appointments that were after a certain datetime.
+    DropPatients = []
+    for i in range(len(Overzicht.PATIENTNUMBER)):
+        print(i)
+        if (not StartedAfter(Afspraken, Overzicht.PATIENTNUMBER[i], DateTime)):
+            DropPatients.append(Overzicht.PATIENTNUMBER[i])
+    todrop = []
+    for j in range(len(Afspraken.PATIENTNUMBER)):
+        print(j)
+        if (Afspraken.PATIENTNUMBER[j] in DropPatients):
+            todrop.append(j)
+    if ip:
+        Afspraken.drop(todrop, inplace=ip)
+        Afspraken.reset_index(drop=True, inplace=ip)
+    else:
+        return Afspraken.drop(todrop, inplace=ip)
+
+def DropAfterDate(Overzicht, Afspraken, DateTime, ip = True):  # Function that drops appointments that were before a certain datetime.
+    DropPatients = []
+    for i in range(len(Overzicht.PATIENTNUMBER)):
+        print(i)
+        if (not EndedBefore(Afspraken, Overzicht.PATIENTNUMBER[i], DateTime)):
+            DropPatients.append(Overzicht.PATIENTNUMBER[i])
+    todrop = []
+    for j in range(len(Afspraken.PATIENTNUMBER)):
+        print(j)
+        if (Afspraken.PATIENTNUMBER[j] in DropPatients):
+            todrop.append(j)
+    if ip:
+        Afspraken.drop(todrop, inplace=ip)
+        Afspraken.reset_index(drop=True, inplace=ip)
+    else:
+        return Afspraken.drop(todrop, inplace=ip)
+
+def DropNotInList(Data, List, ip=True):  # Function that drops rows for which the patientnumber is not in the List.
+    todrop = []
+    for i in range(len(Data)):
+        if(Data.Patientnummer[i] not in List):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+    
+
+#*********************************NEW APPOINTMENTS CSV********************************************#
+# Run this code to make new appointments data set after certain filters. 
+
+# Afspraken = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\staar.csv', skiprows = 1, usecols=[0,2,3,4,6,8,11,13], names=['APPNUMBER','PATIENTNUMBER','DATE','TIME','VOLDAAN','AFDELING','CODE', 'NOPATIENT'], header = None, dtype = str)
+
+# Afspraken.drop_duplicates(subset=['APPNUMBER'], inplace = True)
+# Afspraken.reset_index(drop=True, inplace=True)
+# DropNietVoldaan(Afspraken)
+# DropNoPatient(Afspraken)
+
+
+# Afspraken.DATE = Afspraken.DATE.str.replace(r'00:00:00.000', '')
+# Afspraken["DATETIME"] = Afspraken.DATE + ' ' + Afspraken.TIME
+# Afspraken.pop("DATE")
+# Afspraken.pop("TIME")
+# Afspraken.pop("VOLDAAN")
+# Afspraken.pop("NOPATIENT")
+
+# print(Afspraken)
+
+# Afspraken.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\staarNew_Gefilterd.csv')
+#****************************************************************************************************#
+
+
+
+#************************************PathwayVariantID-LIST*****************************************#
+# Prints a list of all the pathway variant ID's
+
+# PathwaysNew = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\PathwaysNew2.csv', skiprows = 1, usecols=[1,5], names=['PATIENTNUMBER','PATHWAYVARIANTID'], header = None, dtype = str)
+#
+# PathwayVariantIDs = []
+# for i in range(len(PathwaysNew.PATHWAYVARIANTID)):
+#     if( not(PathwaysNew.PATHWAYVARIANTID[i] in PathwayVariantIDs)):
+#         PathwayVariantIDs.append(PathwaysNew.PATHWAYVARIANTID[i])
+
+# print(PathwayVariantIDs)
+#**************************************************************************************************#
+
+
+
+#*******************************************OVERVIEW**********************************************#
+# For a set of appointments data, this code turns it into an overview with patient number, number of appointments and number of logins. The overview gets turned into a new csv.
+
+# PathwaysNew = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Pathways_Mix_NoDoubles.csv', skiprows = 1, usecols=[0,1], names=['ID','PATIENTNUMBER'], header = None, dtype = str)
+# AfsprakenNew = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Consulten_17_03_2017_tot_01_01_2018.csv', skiprows = 1, usecols=[2,5], names=['PATIENTNUMBER','DATETIME'], header = None, dtype = str)
+
+
+# AfsprakenGrouped = AfsprakenNew.groupby('PATIENTNUMBER')
+# PathwaysGrouped = PathwaysNew.groupby('PATIENTNUMBER')
+# AfsprakenNewList = pd.DataFrame(AfsprakenGrouped.nunique())
+# PatientList = list(AfsprakenNewList.index)
+# AppNumberList = list(AfsprakenNewList.DATETIME)
+# PathwaysNewList = pd.DataFrame(PathwaysGrouped.nunique())
+# PatientList2 = list(PathwaysNewList.index)
+# LoginsList = list(PathwaysNewList.ID)
+
+# Patients = []
+# Apps = []
+# Logins = []
+# for i in range(len(PatientList)):
+#     if(not(PatientList[i] in PatientList2)):
+#         Patients.append(PatientList[i])
+#         Apps.append(AppNumberList[i])
+#         Logins.append('0')
+#     else:
+#         for j in range(len(PatientList2)):
+#             if(PatientList[i] == PatientList2[j]):
+#                 Patients.append(PatientList[i])
+#                 Apps.append(AppNumberList[i])
+#                 Logins.append(LoginsList[j])
+
+# data = {'Patientnummer': Patients, 'Aantal Afspraken': Apps, 'Aantal Logins': Logins}
+# Overzicht = pd.DataFrame(data, columns = ['Patientnummer','Aantal Afspraken','Aantal Logins'])
+# Overzicht.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_Consulten_17_03_2017_tot_01_01_2018.csv')
+#**************************************************************************************************#
+
+
+
+#**********************************PathwayVariantID-OVERVIEW**************************************#
+# Function that adds the pathway variant ID's of the users to an existing overview.
+
+# def MakeVariantString(PathwaysNew, Patientnumber):
+#     VarientList = []
+#     for j in range(len(PathwaysNew.PATIENTNUMBER)):
+#         if (Patientnumber == PathwaysNew.PATIENTNUMBER[j]):
+#             VarientList.append(PathwaysNew.PATHWAYVARIANTID[j])
+#     VarientList = list(set(VarientList))
+#     VarientString = str(VarientList[0])
+#     for x in range(1, len(VarientList)):
+#         VarientString = VarientString + "-" + str(VarientList[x])
+#     return VarientString
+
+# PathwaysNew = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\PathwaysNew_Valid_Logins.csv', skiprows = 1, usecols=[1,5], names=['PATIENTNUMBER','PATHWAYVARIANTID'], header = None, dtype = str)
+# Overzicht = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_Gebruikers_Staar.csv', skiprows = 1, usecols=[0,1,2,3], names=['ID','Patientnummer','Aantal Afspraken','Aantal Logins'], header = None, dtype = str)
+
+# VariantColumn = []
+# for i in range(len(Overzicht.Patientnummer)):
+#     VIDString = MakeVariantString(PathwaysNew, Overzicht.Patientnummer[i])
+#     VariantColumn.append(VIDString)
+# Overzicht["PathwayVariantID"] = VariantColumn
+# Overzicht.pop("ID")
+# Overzicht.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_Gebruikers_met_PathwayID_Staar.csv')
+#**************************************************************************************************#
+
+
+
+#**********************************Scatter Plot Pathway Variants****************************************#
+# This code makes a scatter plot between the number of logins vs the pathway variants.
+
+def MakeVariantList(PathwaysNew, Patientnumber):
+    VarientList = []
+    for j in range(len(PathwaysNew.PATIENTNUMBER)):
+        if (Patientnumber == PathwaysNew.PATIENTNUMBER[j]):
+            VarientList.append(PathwaysNew.PATHWAYVARIANTID[j])
+    VarientList = list(set(VarientList))
+    return VarientList
+#
+# PathwaysNew = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\PathwaysNew_Valid_Logins.csv', skiprows = 1, usecols=[1,5], names=['PATIENTNUMBER','PATHWAYVARIANTID'], header = None, dtype = str)
+# Overzicht = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_Gebruikers_Borstkanker.csv', skiprows = 1, usecols=[0,1,2,3], names=['ID','Patientnummer','Aantal Afspraken','Aantal Logins'], header = None, dtype = str)
+#
+# No_VariantsColumn = []
+# for i in range(len(Overzicht.Patientnummer)):
+#     VIDList = MakeVariantList(PathwaysNew, Overzicht.Patientnummer[i])
+#     No_VariantsColumn.append(len(VIDList))
+#
+# Patients = Overzicht.Patientnummer
+# Logins = Overzicht["Aantal Logins"]
+#
+# data = {'Patientnummer': Patients, 'Aantal Zorgpaden': No_VariantsColumn, 'Aantal Logins': Logins}
+# Overzicht = pd.DataFrame(data, columns = ['Patientnummer','Aantal Zorgpaden','Aantal Logins'])
+# Overzicht.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_Borstkanker_ZorgpadenVSLogins.csv')
+
+# X = No_VariantsColumn
+# Y = Overzicht["Aantal Logins"]
+#
+# plt.scatter(X, Y,  alpha = 0.8, c = 'teal', edgecolor = 'none', s=10)
+# xx = np.linspace(0, 1.1*180, 100)
+# plt.plot(xx, xx, color='darkorange')
+#
+# plt.xlim(right = 10)
+# plt.xlim(left = 0)
+# #plt.ylim(top = 180)
+# #plt.ylim(bottom = 0)
+# plt.title('Scatter plot Zorgpaden vs Logins')
+# plt.xlabel('Aantal zorgpaden')
+# plt.ylabel('Aantal Inlogs')
+# plt.show()
+#**************************************************************************************************#
+
+
+
+#***************************************APPOINTMENTS-CONSULTATIONS****************************************#
+# This code turns appointment data into data with just consultations.
+
+# AfsprakenNew = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Afspraken_17_03_2017_tot_01_01_2018.csv', skiprows = 1, usecols=[1,2,3,4,5], names=['APPNUMBER','PATIENTNUMBER','AFDELING','CODE','DATETIME'], header = None, dtype = str)
+#
+# DropNoConsult(AfsprakenNew)
+#
+# AfsprakenNew.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Consulten_17_03_2017_tot_01_01_2018.csv')
+#*********************************************************************************************************#
+
+
+
+#*************************MEAN NUMBER CONSULTATIONS USERS vs NON-USERS*****************************#
+# This code prints the mean number of consultations for the users and non-users of the overview.
+
+# Overzicht = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_borstkanker_Afspraken_met_Afdelingfilter.csv', skiprows = 1, usecols=[2,3], names=['Aantal Afspraken','Aantal Logins'], header = None, dtype = str)
+#
+# Total_NG = 0 #totaal aantal afspr niet-gebruikers
+# Total_G = 0 #totaal aantal afspr gebruikers
+# Aantal_NG = 0 #aantal niet-gebruikers
+# Aantal_G = 0 #aantal gebruikers
+# for i in range(len(Overzicht["Aantal Afspraken"])):
+#     if (Overzicht["Aantal Logins"][i] == "0"):
+#         Total_NG += int(Overzicht["Aantal Afspraken"][i])
+#         Aantal_NG += 1
+#     else:
+#         Total_G += int(Overzicht["Aantal Afspraken"][i])
+#         Aantal_G += 1
+#
+# print("Er zijn ", Aantal_G, " gebruikers van Medimapp, en zij hebben gemiddeld ", Total_G/Aantal_G , " afspraken.")
+# print("Er zijn ", Aantal_NG, " niet-gebruikers van Medimapp, en zij hebben gemiddeld ", Total_NG/Aantal_NG , " afspraken.")
+#**************************************************************************************************#
+
+
+
+#*****************************************DEPARTMENT_LIST********************************************#
+# Code to print all departments that appear in the data.
+
+# Afspraken = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\staarNew_Gefilterd.csv', skiprows = 1, usecols=[3], names=['AFDELING'], header = None, dtype = str)
+
+# AfdelingList = list(set(list(Afspraken.AFDELING)))
+# NietRevalidatieList = []
+# RevalidatieList = []
+# for i in range(len(AfdelingList)):
+#     if (AfdelingList[i][:11] == 'REVALIDATIE'):
+#         RevalidatieList.append(AfdelingList[i])
+#     else:
+#         NietRevalidatieList.append(AfdelingList[i])
+# print(len(AfdelingList))
+# print(RevalidatieList)
+# print()
+# print(NietRevalidatieList)
+#**************************************************************************************************#
+
+
+
+#***************************************SORT-DEPARTMENTS****************************************#
+# Code that drops all appointments that belong to departments that have nothing to do with the diagnosis.
+
+# Afspraken = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\staarNew_Gefilterd.csv', skiprows = 1, usecols=[1,2,3,4,5], names=['APPNUMBER','PATIENTNUMBER','AFDELING','CODE','DATETIME'], header = None, dtype = str)
+#
+# DropFouteAfdeling(Afspraken, STAARAFDELINGEN)
+#
+# Afspraken.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\staarNew_Juiste_Afdelingen.csv')
+#**************************************************************************************************#
+
+
+
+#**********************************PATHWAYVARIANT-IN-DETAIL****************************************#
+# Code that makes an overview of the pathway variants and their ID.
+
+# Pathways = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\pathways.csv', skiprows = 1, usecols=[2,7], names=['PathwayVariantTitle','PathwayVariantID'], header = None, dtype = str)
+#
+# AllVariants = ['9', '1', '5', '6', '8', '11', '36', '4', '28', '22', '35', '19', '18', '24', '34', '33', '43', '13', '38', '47', '46', '45', '51', '30', '52', '25', '23', '55', '57', '60', '62', '54', '56', '64', '59', '12', '67', '78', '72', '82', '87', '80', '71', '100', '98', '96', '73', '102', '103', '101', '91', '89', '84', '88', '66', '104', '90', '86', '85', '95', '97', '65', '105', '113', '117', '118', '110', '119', '112', '122', '111', '63']
+# AllVariants = list(map(int, AllVariants))
+# AllVariants.sort()
+# AllVariants = list(map(str, AllVariants))
+# print(AllVariants)
+# 
+# def ReturnPathwayVariantTitle(Pathways, PathwayVariantID):
+#         for i in range(len(Pathways.PathwayVariantID)):
+#             if (Pathways.PathwayVariantID[i] == PathwayVariantID):
+#                 return Pathways.PathwayVariantTitle[i]
+#         return "???"
+#
+# AllTitles = []
+# for j in range(len(AllVariants)):
+#     AllTitles.append(ReturnPathwayVariantTitle(Pathways, AllVariants[j]))
+#
+# data = {'PathwayVariantID': AllVariants, 'PathwayVariantTitle': AllTitles}
+# PathwayVariantOverzicht = pd.DataFrame(data, columns = ['PathwayVariantID','PathwayVariantTitle'])
+#
+# PathwayVariantOverzicht.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\PathwayVariantOverzicht.csv')
+#**************************************************************************************************#
+
+
+
+#************************************BINARY-COLUMN-USER***************************************#
+# Code that adds a binary column to the overview with whether the patient is a user(1) or not(0).
+
+# Overzicht = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BorstkankerBelConsults_naMM.csv', skiprows = 1, usecols=[1,2,3], names=['Patientnummer','Aantal Afspraken','Aantal Logins'], header = None, dtype = str)
+
+# IsGebruiker = []
+# for i in range(len(Overzicht.Patientnummer)):
+#     if (Overzicht["Aantal Logins"][i] == "0"):
+#         IsGebruiker.append("0")
+#     else:
+#         IsGebruiker.append("1")
+
+# Overzicht["IsGebruiker"] = IsGebruiker
+
+# Overzicht.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BorstkankerBelConsults_naMM_gebr.csv')
+#**************************************************************************************************#
+
+
+
+#**************************************NUMBER-OF-NON-CONSULTATIONS****************************************#
+# Code that adds the number of non-consultations to the overview.
+
+# OverzichtConsults = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BorstkankerControle_naMM.csv', skiprows = 1, usecols=[1,2,3], names=['Patientnummer','Aantal Consulten','Aantal Logins'], header = None, dtype = str)
+# OverzichtAfspraken = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BorstkankerAfspraken_Na_Medimapp_met_Afdelingfilter.csv', skiprows = 1, usecols=[1,2], names=['Patientnummer','Aantal Afspraken'], header = None, dtype = str)
+
+# ComplementList = []
+# for i in range(len(OverzichtConsults.Patientnummer)):
+#     for j in range(len(OverzichtAfspraken.Patientnummer)):
+#         if (OverzichtConsults.Patientnummer[i] == OverzichtAfspraken.Patientnummer[j]):
+#             ComplementList.append(str(int(OverzichtAfspraken["Aantal Afspraken"][j]) - int(OverzichtConsults["Aantal Consulten"][i])))
+
+# OverzichtConsults["Aantal Niet-Consulten"] = ComplementList
+
+# OverzichtConsults.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BorstkankerControle_naMM_WelEnNiet.csv')
+#**************************************************************************************************#
+
+
+
+#**********************************SPLIT-GROUPS-based-on-NCONS**************************************#
+# Code that splits the overview based on number of non-consultations.
+
+def FilterNCons(Data, lower, upper, ip = True):
+    todrop = []
+    for i in range(len(Data)):
+        if not(int(Data["Aantal NietConsulten"][i]) >= lower and int(Data["Aantal NietConsulten"][i]) < upper):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace=ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else:
+        return Data.drop(todrop, inplace=ip)
+
+# Overzicht = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_met_Gebruikersklasse_3_3_1.csv', skiprows = 1, usecols=[1,2,3,4,5], names=['Patientnummer','Aantal consulten','Aantal logins','Aantal NietConsulten','Gebruikersklasse'], header = None, dtype = str)
+#
+# Overzicht1 = Overzicht.copy(deep=True)
+# Overzicht2 = Overzicht.copy(deep=True)
+# Overzicht3 = Overzicht.copy(deep=True)
+# Overzicht4 = Overzicht.copy(deep=True)
+#
+# FilterNCons(Overzicht1, 0, 10)
+# FilterNCons(Overzicht2, 10, 20)
+# FilterNCons(Overzicht3, 20, 30)
+# FilterNCons(Overzicht4, 30, 53)
+#
+# Overzicht1.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\NCons groepen\Overzicht_Borstkanker_0-9NCons.csv')
+# Overzicht2.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\NCons groepen\Overzicht_Borstkanker_10-19NCons.csv')
+# Overzicht3.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\NCons groepen\Overzicht_Borstkanker_20-29NCons.csv')
+# Overzicht4.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\NCons groepen\Overzicht_Borstkanker_30-52NCons.csv')
+#**************************************************************************************************#
+
+
+
+#***********************************ASSIGN-PATHWAYVARIANT**************************************#
+# Code that adds a column with the patients pathway variant in the overviws based on an ordeer made with Anna.
+
+# Saved_Pathways = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\AnalyticsDataCompleet.csv', usecols=[1,5,11], names=['PATIENTNUMBER','PATHWAYVARIANTID','DATE'], header = None, dtype = str)
+# # Overzicht = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_Alle_Borstkanker_Patienten.csv', skiprows = 1, usecols=[1], names=['Patientnummer'], header = None, dtype = str)
+# # Overzicht = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_Consulten_naMM_Voor_2020_begonnen_Ook_Afspraken_1_1.csv', skiprows = 1, usecols=[1,2,3,4,5], names=['Patientnummer','Aantal consulten','Aantal logins','Gebruikersklasse','Aantal afspraken'], header = None, dtype = str)
+# Overzicht = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overview_Consults_Voor_2020_begonnen_zonder_zorgpad.csv', dtype = str)
+#
+#
+# Saved_Pathways = Saved_Pathways.sort_values(['PATIENTNUMBER', 'DATE'])
+#
+# Set1 = set(list(Saved_Pathways.PATIENTNUMBER))
+# #Set1 = list(Set1)
+# print(Set1)
+# print(len(Set1))
+# Set2 = set(Overzicht.Patientnummer)
+# ListIntersect = list(Set1.intersection(Set2))
+# print(ListIntersect)
+# print("length is: ", len(ListIntersect))
+# Set3 = set(ListIntersect)
+# Set4 = Set2 - Set3
+# ListComplement = list(Set4)
+# print(ListComplement)
+# print("length is: ", len(ListComplement))
+#
+# DropNotInList(Overzicht, ListIntersect)
+#
+# Saved_Pathways_Grouped = Saved_Pathways.groupby('PATIENTNUMBER')["PATHWAYVARIANTID"].apply(list).reset_index(name='PATHWAYS')
+# print(Saved_Pathways_Grouped)
+# patientlist = list(Saved_Pathways_Grouped.PATIENTNUMBER)
+# afsprakenlist = list(Saved_Pathways_Grouped.PATHWAYS)
+#
+# List1 = ["0"]*len(Overzicht.Patientnummer)
+# List5 = ["0"]*len(Overzicht.Patientnummer)
+# List6 = ["0"]*len(Overzicht.Patientnummer)
+# List8 = ["0"]*len(Overzicht.Patientnummer)
+# List9 = ["0"]*len(Overzicht.Patientnummer)
+# List33 = ["0"]*len(Overzicht.Patientnummer)
+# List50 = ["0"]*len(Overzicht.Patientnummer)
+# List51 = ["0"]*len(Overzicht.Patientnummer)
+# List52 = ["0"]*len(Overzicht.Patientnummer)
+# List53 = ["0"]*len(Overzicht.Patientnummer)
+#
+# for i in range(len(Overzicht.Patientnummer)):
+#     print(Overzicht.Patientnummer[i])
+#     j = patientlist.index(Overzicht.Patientnummer[i])
+#     print(patientlist[j])
+#     print(afsprakenlist[j])
+#     if ("9" in afsprakenlist[j]): #"1" in afsprakenlist[j]
+#         List9[i] = "1"
+#     elif ("8" in afsprakenlist[j]):
+#         List8[i] = "1"
+#     elif ("6" in afsprakenlist[j]):
+#         List6[i] = "1"
+#     elif ("5" in afsprakenlist[j]):
+#         List5[i] = "1"
+#     elif ("53" in afsprakenlist[j]):
+#         List53[i] = "1"
+#     elif ("52" in afsprakenlist[j]):
+#         List52[i] = "1"
+#     elif ("51" in afsprakenlist[j]):
+#         List51[i] = "1"
+#     elif ("50" in afsprakenlist[j]):
+#         List50[i] = "1"
+#     elif ("1" in afsprakenlist[j]):
+#         List1[i] = "1"
+#     elif ("33" in afsprakenlist[j]):
+#         List33[i] = "1"
+#
+# Overzicht["Zorgpad1"] = List1
+# Overzicht["Zorgpad5"] = List5
+# Overzicht["Zorgpad6"] = List6
+# Overzicht["Zorgpad8"] = List8
+# Overzicht["Zorgpad9"] = List9
+# Overzicht["Zorgpad33"] = List33
+# Overzicht["Zorgpad50"] = List50
+# Overzicht["Zorgpad51"] = List51
+# Overzicht["Zorgpad52"] = List52
+# Overzicht["Zorgpad53"] = List53
+#
+#
+# Overzicht.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overview_Consults_Voor_2020_begonnen_nieuw_zorgpad.csv', index=False)
+#**************************************************************************************************#
+
+
+
+#************************************FIRST-AND-LAST-APPOINTMENT*************************************#
+# Code that adds the first and last appointment to the overview
+
+# Afspraken = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\borstkankerNew_Juiste_Afdelingen.csv', skiprows = 1, usecols=[1,2,5], names=['APPNUMBER','PATIENTNUMBER','DATETIME'], header = None, dtype = str)
+# #Overzicht = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_Consulten_met_Gebruikersklasse_2_3_1_1.csv', skiprows = 1, usecols=[1,2,3,4,5], names=['Patientnummer','Aantal consulten','Aantal logins','Aantal NietConsulten','Gebruikersklasse'], header = None, dtype = str)
+# Overzicht = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_Consulten_NaMM_Voor_2020_begonnen_PathwayVariantIDs.csv', dtype = str)
+#
+#
+# #Info.GEBDAT = pd.to_datetime(Info.GEBDAT, format = "%Y-%m-%d %H:%M:%S.%f")
+# #Afspraken.DATETIME = pd.to_datetime(Afspraken.DATETIME, format = "%Y-%m-%d %H:%M")
+#
+# AfsprakenGrouped = Afspraken.groupby('PATIENTNUMBER')["DATETIME"].apply(list).reset_index(name='AFSPRAKEN')
+# print(AfsprakenGrouped)
+# patientlist = list(AfsprakenGrouped.PATIENTNUMBER)
+# afsprakenlist = list(AfsprakenGrouped.AFSPRAKEN)
+#
+# first_app_list = [None]*len(Overzicht.Patientnummer)
+# last_app_list = [None]*len(Overzicht.Patientnummer)
+# for i in range(len(Overzicht.Patientnummer)):
+#     for j in range(len(patientlist)):
+#         if(Overzicht.Patientnummer[i] == patientlist[j]):
+#             first_app = afsprakenlist[j][0]
+#             last_app = afsprakenlist[j][-1]
+#             first_app_list[i] = first_app
+#             last_app_list[i] = last_app
+#
+# Overzicht["Begin"] = first_app_list
+# Overzicht["Einde"] = last_app_list
+#
+# first_app_list = pd.to_datetime(first_app_list, format = "%Y-%m-%d %H:%M")
+# last_app_list = pd.to_datetime(last_app_list, format = "%Y-%m-%d %H:%M")
+#
+# ProcessLengthList = [None]*len(Overzicht.Patientnummer)
+# for i in range(len(Overzicht.Patientnummer)):
+#     Length = abs((last_app_list[i]-first_app_list[i]).days)
+#     ProcessLengthList[i] = Length
+#
+# Overzicht["Lengte traject"] = ProcessLengthList
+
+# Overzicht.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_Consulten_NaMM_Voor_2020_begonnen_Begin_Eind_Lengte.csv', index=False)
+#**************************************************************************************************#
+
+
+
+#**************************************AGE-AND-POSTAL-CODE****************************************#
+# Code that adds the age and postal code to the overview.
+
+# Info = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\patients_age.csv', skiprows = 1, usecols=[0,1,2], names=['PATIENTNUMBER','GEBDAT','POSTCODE'], header = None, dtype = str)
+# Overzicht = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_Consulten_NaMM_Voor_2020_begonnen_Begin_Eind_Lengte.csv', dtype = str)
+#
+# print(Info.GEBDAT)
+# Info.GEBDAT = pd.to_datetime(Info.GEBDAT, format = "%Y-%m-%d %H:%M:%S.%f")
+# Overzicht.Begin = pd.to_datetime(Overzicht.Begin, format = "%Y-%m-%d %H:%M")
+# Overzicht.Einde = pd.to_datetime(Overzicht.Einde, format = "%Y-%m-%d %H:%M")
+#
+# Set1 = set(list(Info.PATIENTNUMBER))
+# #Set1 = list(Set1)
+# print(Set1)
+# print(len(Set1))
+# Set2 = set(Overzicht.Patientnummer)
+# ListIntersect = list(Set1.intersection(Set2))
+# print(ListIntersect)
+# print("length is: ", len(ListIntersect))
+# Set3 = set(ListIntersect)
+# Set4 = Set2 - Set3
+# ListComplement = list(Set4)
+# print(ListComplement)
+# print("length is: ", len(ListComplement))
+#
+# Info["Patientnummer"] = Info.PATIENTNUMBER
+# DropNotInList(Info, ListIntersect)
+# DropNotInList(Overzicht, ListIntersect)
+#
+# print("Gelukt")
+# print(Info)
+#
+# AgeList = [None]*len(Overzicht.Patientnummer)
+# for i in range(len(Overzicht.Patientnummer)):
+#     for j in range(len(Info.PATIENTNUMBER)):
+#         if(Overzicht.Patientnummer[i] == Info.PATIENTNUMBER[j]):
+#             age_lower = abs(relativedelta(Overzicht.Begin[i], Info.GEBDAT[j]).years)
+#             age_upper = abs(relativedelta(Overzicht.Einde[i], Info.GEBDAT[j]).years)
+#             age = (age_upper+age_lower)/2
+#             AgeList[i] = str(age)
+#
+#
+# Overzicht["Leeftijd"] = AgeList
+# Overzicht.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_Consulten_alle_info_Voor_2020_begonnen.csv')
+#**************************************************************************************************#
+
+
+
+#****************************************WAITING-TIMES-MARC*********************************************#
+# Code that adds a dummy to the overview with whether a patient had a waiting time according to marc.
+
+# Overzicht = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overview_Consults_Voor_2020_begonnen_nieuw_zorgpad.csv', dtype = str)
+# Doorloop = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\DoorlooptijdenUsers.csv', dtype = str)
+# CheckList = list(Doorloop.PATIENTNUMBER)
+#
+# DoorloopList = ["0"]*len(Overzicht.Patientnummer)
+# for i in range(len(Overzicht.Patientnummer)):
+#     if (Overzicht.Patientnummer[i] in CheckList):
+#         DoorloopList[i] = "1"
+# Overzicht["Doorloop"] = DoorloopList
+#
+# Overzicht.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overview_Linear_Regression_inclDoorloop.csv', index=False)
+#**************************************************************************************************#
+
+
+
+#******************************************Mortality***********************************************#
+# Code that adds a column to the overviwe with a dummy whether the patient passed away during their care process
+
+# Overzicht = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overview_Linear_Regression_inclDoorloop_FeatureGK.csv', dtype = str)
+# Mortality = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\patientsMortality.csv', dtype = str)
+# CheckList = list(Mortality.PatientNumber)
+#
+# MortalityList = ["0"]*len(Overzicht.Patientnummer)
+# for i in range(len(Overzicht.Patientnummer)):
+#     if (Overzicht.Patientnummer[i] in CheckList):
+#         MortalityList[i] = "1"
+# Overzicht["Mortality"] = MortalityList
+#
+# Overzicht.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overview_Linear_Regression_inclMortality.csv', index=False)
+#**************************************************************************************************#
+
+##############
+### T test ###
+##############
+# Code that performs a t-test to compare non-users in the regression with patients from before the introduction of Medimapp.
+
+# Regression = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overview_Linear_Regression_inclMortality.csv', dtype = str)
+# Check = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_Consulten_17_03_2017_tot_01_01_2018.csv', dtype = str)
+#
+# TheList = []
+# for i in range(len(Regression.Patientnummer)):
+#     if(Regression.Gebruikersklasse[i] == "0"):
+#         TheList.append(Regression["Aantal consulten"][i])
+# NonUserConsults = list(map(int, TheList))
+# PreMMConsults = list(map(int, list(Check["Aantal Afspraken"])))
+#
+# print(scipy.stats.ttest_ind(NonUserConsults, PreMMConsults, equal_var=False))
+#
+# s_NU = PE.stand_dev(NonUserConsults)
+# s_preMM = PE.stand_dev(PreMMConsults)
+# print("s_NU: ", s_NU)
+# print("s_preMM: ", s_preMM)
+# # print("Fraction: ", s_NU/s_preMM)
+#
+# n = len(NonUserConsults)
+# m = len(PreMMConsults)
+# print("n: ", n)
+# print("m: ", m)
+# # print("n+m: ", n+m)
+# # s_z2 = ((n-1)*(s_NU**2) + (m-1)*(s_preMM**2))/(n+m-2)
+# # print("s_z2: ", s_z2)
+# s_z = math.sqrt((s_NU**2)/n + (s_preMM**2)/m)
+# print("s_delta is: ", s_z)
+#
+# mean_NU = PE.mean(NonUserConsults)
+# mean_preMM = PE.mean(PreMMConsults)
+#
+# print("mean_NU: ", mean_NU)
+# print("mean_preMM: ", mean_preMM)
+#
+# T = (mean_NU - mean_preMM)/(s_z)
+# # t_value = t.ppf(1-0.05/2, n+m)
+# t_value = 1.96
+# if(t_value<T or T<-t_value):
+#     print("T=",T)
+#     print("t=",t_value)
+#     print("We verwerpen H0!")
+# else:
+#     print("T=", T)
+#     print("t=", t_value)
+#     print("We verwerpen H0 niet!")
+#
+# List = list(map(int, list(Regression["Aantal afspraken"])))
+# List2 = list(map(int, list(Regression["Aantal consulten"])))
+# plt.hist(List, bins=15, color="#f9bec7", ec="#ff99ac", alpha=0.8)
+# # plt.hist(List2, bins=15, color="#f2a65a", ec="#f58549", alpha=0.8)
+# plt.title("Histogram number of appointments in care process")
+# plt.xlabel("Number of appointments")
+# plt.ylabel("Count")
+# plt.locator_params(axis='x', nbins=10)
+# plt.show()
+
+    # s_NU: 17.755805904164944
+    # s_preMM: 19.942536316488546
+    # n: 372
+    # m: 558
+    # s_delta is: 1.2490912249874147
+    # mean_NU: 18.666666666666668
+    # mean_preMM: 21.892473118279568
+    # T = -2.5825227069747467
+    # t = 1.96
+    # We verwerpen H0!
+#**********************************************************************
+
+
+#*****************HISTOGRAM-LENGTH-CARE-PROCESS********************#
+# Code that makes a histogram of the length of the care process for patients in our data set.
+
+# Afspraken = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\borstkankerNew_Juiste_Afdelingen.csv', skiprows = 1, usecols=[1,2,5], names=['APPNUMBER','PATIENTNUMBER','DATETIME'], header = None, dtype = str)
+#
+#
+# Afspraken.DATETIME = pd.to_datetime(Afspraken.DATETIME, format = "%Y-%m-%d %H:%M")
+#
+# AfsprakenGrouped = Afspraken.groupby('PATIENTNUMBER')["DATETIME"].apply(list).reset_index(name='AFSPRAKEN')
+# print(AfsprakenGrouped)
+# patientlist = list(AfsprakenGrouped.PATIENTNUMBER)
+# afsprakenlist = list(AfsprakenGrouped.AFSPRAKEN)
+#
+# daylist = []
+# for j in range(len(patientlist)):
+#     first_app = afsprakenlist[j][0]
+#     last_app = afsprakenlist[j][-1]
+#     days = abs((last_app-first_app).days)
+#     daylist.append(days)
+#
+# plt.hist(daylist, bins=15, color="#f9bec7", ec="#ff99ac", alpha=0.8)
+# plt.title("Histogram length care process")
+# plt.xlabel("Number of days")
+# plt.ylabel("Count")
+# plt.show()
+#**********************************************************************#
+
+
+
+#*********************Histogram-Length-CareProcess-COX*********************#
+# Code that makes a histogram of the length of the care process for patients in our COX data set.
+
+
+COX = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_BK_biggerstop.csv', dtype = str)
+
+List = list(map(float, list(COX["start"])))
+
+DAYLIST = []
+for i in range(len(COX.ID)):
+    if(COX.status[i] == "0"):
+        DAYLIST.append(List[i])
+
+plt.hist(DAYLIST, bins=15, color="#f9bec7", ec="#ff99ac", alpha=0.8, density=True)
+plt.title("Histogram length care process")
+plt.xlabel("Number of days")
+plt.ylabel("Count")
+plt.show()
+#**********************************************************************#
