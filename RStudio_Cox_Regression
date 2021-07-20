@@ -1,0 +1,182 @@
+## Initialize
+
+rm(list = ls()); cat("\014")  
+
+## Open Libraries
+library(survival)
+library(ranger)
+library(ggplot2)
+library(dplyr)
+library(ggfortify)
+
+##COX REGRESSION (Andersen-Gill model)##
+
+## Read data
+Data      <- read.csv(file = 'COX_Overview_BK_biggerstop.csv')
+head(Data)
+str(Data)
+PV.f <- factor(Data$group)
+Data$moreinfo <- Data$careprovider + Data$article
+
+## !!Only run these 3 lines when wanting to perform the AG-regression without pathway variant 51!! ##
+New_Data <- Data
+New_Data <- New_Data[-which(New_Data$group != "51"),]
+PV.f <- factor(New_Data$group)
+
+## Perform Cox regression:
+fit <- coxph(Surv(start,stop,status) ~ age + lastcons + globaluser + PV.f + cluster(ID), data = Data)
+summary(fit)
+
+## Perform Cox regression with cross terms:
+fit2 <- coxph(Surv(start,stop,status) ~ age + lastcons + globaluser + PV.f + PV.f*globaluser + cluster(ID), data = Data)
+summary(fit2)
+
+
+###########################
+####### COX results #######
+###########################
+# Below are the results that were printed for the different calls used in the thesis:
+
+# Call:
+# coxph(formula = Surv(start, stop, status) ~ age + lastcons + 
+#         globaluser + PV.f, data = Data, cluster = ID)
+# 
+# n= 30739, number of events= 26600 
+# (12 observations deleted due to missingness)
+# 
+# coef  exp(coef)   se(coef)  robust se       z Pr(>|z|)    
+# age        -0.0009237  0.9990767  0.0005149  0.0004087  -2.260 0.023812 *  
+# lastcons   -0.0793271  0.9237377  0.0006282  0.0011490 -69.038  < 2e-16 ***
+# globaluser -0.0345508  0.9660392  0.0141270  0.0113775  -3.037 0.002391 ** 
+# PV.f5      -0.0746974  0.9280243  0.0242716  0.0218319  -3.421 0.000623 ***
+# PV.f6      -0.0511330  0.9501523  0.0221918  0.0180586  -2.831 0.004633 ** 
+# PV.f8      -0.0734380  0.9291938  0.0313266  0.0229481  -3.200 0.001373 ** 
+# PV.f9       0.1213906  1.1290658  0.0863589  0.0217093   5.592 2.25e-08 ***
+# PV.f50     -0.0934999  0.9107382  0.0244743  0.0205806  -4.543 5.54e-06 ***
+# PV.f51      0.0508613  1.0521769  0.0333374  0.0283563   1.794 0.072869 .  
+# PV.f52      0.0276697  1.0280561  0.0304543  0.0245480   1.127 0.259672    
+# PV.f53      0.0833343  1.0869051  0.0204063  0.0160629   5.188 2.13e-07 ***
+#   ---
+#   Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+# 
+# exp(coef) exp(-coef) lower .95 upper .95
+# age           0.9991     1.0009    0.9983    0.9999
+# lastcons      0.9237     1.0826    0.9217    0.9258
+# globaluser    0.9660     1.0352    0.9447    0.9878
+# PV.f5         0.9280     1.0776    0.8892    0.9686
+# PV.f6         0.9502     1.0525    0.9171    0.9844
+# PV.f8         0.9292     1.0762    0.8883    0.9719
+# PV.f9         1.1291     0.8857    1.0820    1.1781
+# PV.f50        0.9107     1.0980    0.8747    0.9482
+# PV.f51        1.0522     0.9504    0.9953    1.1123
+# PV.f52        1.0281     0.9727    0.9798    1.0787
+# PV.f53        1.0869     0.9200    1.0532    1.1217
+# 
+# Concordance= 0.89  (se = 0.002 )
+# Likelihood ratio test= 47895  on 11 df,   p=<2e-16
+# Wald test            = 5592  on 11 df,   p=<2e-16
+# Score (logrank) test = 11842  on 11 df,   p=<2e-16,   Robust = 487.1  p=<2e-16
+
+
+#######################
+
+
+# Call:
+#   coxph(formula = Surv(start, stop, status) ~ age + lastcons + 
+#           globaluser + PV.f + globaluser:PV.f, data = Data, cluster = ID)
+# 
+# n= 30739, number of events= 26600 
+# (12 observations deleted due to missingness)
+# 
+#                        coef  exp(coef)   se(coef)  robust se       z Pr(>|z|)    
+# age               -0.0007993  0.9992010  0.0005180  0.0004145  -1.929 0.053781 .  
+# lastcons          -0.0793480  0.9237184  0.0006283  0.0011465 -69.208  < 2e-16 ***
+# globaluser        -0.0075463  0.9924821  0.0389164  0.0349155  -0.216 0.828885    
+# PV.f5             -0.0512784  0.9500141  0.0279954  0.0266769  -1.922 0.054580 .  
+# PV.f6             -0.0488408  0.9523328  0.0260726  0.0202723  -2.409 0.015986 *  
+# PV.f8             -0.0713078  0.9311752  0.0379913  0.0283451  -2.516 0.011880 *  
+# PV.f9              0.1283979  1.1370053  0.0867130  0.0227232   5.651 1.60e-08 ***
+# PV.f50            -0.0639206  0.9380795  0.0294716  0.0261344  -2.446 0.014451 *  
+# PV.f51             0.0796785  1.0829389  0.0358903  0.0297404   2.679 0.007381 ** 
+# PV.f52             0.0142263  1.0143280  0.0335130  0.0262179   0.543 0.587393    
+# PV.f53             0.0782151  1.0813552  0.0229857  0.0181391   4.312 1.62e-05 ***
+# globaluser:PV.f5  -0.0830450  0.9203098  0.0540373  0.0454980  -1.825 0.067964 .  
+# globaluser:PV.f6  -0.0170121  0.9831318  0.0473994  0.0406124  -0.419 0.675297    
+# globaluser:PV.f8  -0.0156805  0.9844418  0.0653897  0.0483454  -0.324 0.745678    
+# globaluser:PV.f9          NA         NA  0.0000000  0.0000000      NA       NA    
+# globaluser:PV.f50 -0.0841497  0.9192936  0.0531131  0.0453962  -1.854 0.063786 .  
+# globaluser:PV.f51 -0.2145385  0.8069137  0.1000643  0.0597719  -3.589 0.000332 ***
+# globaluser:PV.f52  0.0913168  1.0956161  0.0803396  0.0659021   1.386 0.165856    
+# globaluser:PV.f53  0.0223007  1.0225512  0.0495893  0.0419436   0.532 0.594946    
+# ---
+#   Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+# 
+# exp(coef) exp(-coef) lower .95 upper .95
+# age                  0.9992     1.0008    0.9984    1.0000
+# lastcons             0.9237     1.0826    0.9216    0.9258
+# globaluser           0.9925     1.0076    0.9268    1.0628
+# PV.f5                0.9500     1.0526    0.9016    1.0010
+# PV.f6                0.9523     1.0501    0.9152    0.9909
+# PV.f8                0.9312     1.0739    0.8809    0.9844
+# PV.f9                1.1370     0.8795    1.0875    1.1888
+# PV.f50               0.9381     1.0660    0.8912    0.9874
+# PV.f51               1.0829     0.9234    1.0216    1.1479
+# PV.f52               1.0143     0.9859    0.9635    1.0678
+# PV.f53               1.0814     0.9248    1.0436    1.1205
+# globaluser:PV.f5     0.9203     1.0866    0.8418    1.0061
+# globaluser:PV.f6     0.9831     1.0172    0.9079    1.0646
+# globaluser:PV.f8     0.9844     1.0158    0.8954    1.0823
+# globaluser:PV.f9         NA         NA        NA        NA
+# globaluser:PV.f50    0.9193     1.0878    0.8410    1.0048
+# globaluser:PV.f51    0.8069     1.2393    0.7177    0.9072
+# globaluser:PV.f52    1.0956     0.9127    0.9629    1.2467
+# globaluser:PV.f53    1.0226     0.9779    0.9419    1.1102
+# 
+# Concordance= 0.89  (se = 0.002 )
+# Likelihood ratio test= 47910  on 18 df,   p=<2e-16
+# Wald test            = 5627  on 18 df,   p=<2e-16
+# Score (logrank) test = 11946  on 18 df,   p=<2e-16,   Robust = 492.2  p=<2e-16
+
+###########################
+
+# Call:
+#   coxph(formula = Surv(start, stop, status) ~ age + lastcons + 
+#           globaluser + PV.f, data = New_Data, cluster = ID)
+# 
+# n= 29224, number of events= 25415 
+# (12 observations deleted due to missingness)
+# 
+# coef  exp(coef)   se(coef)  robust se       z Pr(>|z|)    
+# age        -0.0011678  0.9988329  0.0005375  0.0004195  -2.784 0.005371 ** 
+# lastcons   -0.0800470  0.9230730  0.0006484  0.0011917 -67.171  < 2e-16 ***
+# globaluser -0.0318327  0.9686687  0.0143211  0.0113151  -2.813 0.004904 ** 
+# PV.f5      -0.0798916  0.9232165  0.0243640  0.0217613  -3.671 0.000241 ***
+# PV.f6      -0.0581806  0.9434795  0.0223274  0.0181192  -3.211 0.001323 ** 
+# PV.f8      -0.0807309  0.9224419  0.0314611  0.0229325  -3.520 0.000431 ***
+# PV.f9       0.1150518  1.1219315  0.0864529  0.0218851   5.257 1.46e-07 ***
+# PV.f50     -0.0986505  0.9060593  0.0245355  0.0205969  -4.790 1.67e-06 ***
+# PV.f52      0.0288856  1.0293069  0.0304614  0.0244979   1.179 0.238355    
+# PV.f53      0.0836728  1.0872730  0.0204148  0.0160284   5.220 1.79e-07 ***
+#   ---
+#   Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+# 
+# exp(coef) exp(-coef) lower .95 upper .95
+# age           0.9988     1.0012    0.9980    0.9997
+# lastcons      0.9231     1.0833    0.9209    0.9252
+# globaluser    0.9687     1.0323    0.9474    0.9904
+# PV.f5         0.9232     1.0832    0.8847    0.9634
+# PV.f6         0.9435     1.0599    0.9106    0.9776
+# PV.f8         0.9224     1.0841    0.8819    0.9648
+# PV.f9         1.1219     0.8913    1.0748    1.1711
+# PV.f50        0.9061     1.1037    0.8702    0.9434
+# PV.f52        1.0293     0.9715    0.9811    1.0799
+# PV.f53        1.0873     0.9197    1.0536    1.1220
+# 
+# Concordance= 0.886  (se = 0.002 )
+# Likelihood ratio test= 44284  on 10 df,   p=<2e-16
+# Wald test            = 5232  on 10 df,   p=<2e-16
+# Score (logrank) test = 10539  on 10 df,   p=<2e-16,   Robust = 450.2  p=<2e-16
+
+
+
+
