@@ -1,0 +1,200 @@
+#############################
+###                       ###
+###   PEER ECONOMETRICS   ###
+###                       ###
+#############################
+
+# In this file are all mathematical functions that are used throughout the other files to perform standard statistical functions.
+# This file has to be imported in the other files to make them work.
+
+##########################
+#   Importing Packages   #
+##########################
+
+import math
+import numpy as np
+
+#####################
+#   The functions   #
+#####################
+
+def mean(X):
+    sum = 0
+    for x in X:
+        sum += x
+    return sum/len(X)
+
+def median(X):
+    median = 0
+    X_sort = np.sort(X)
+    if (len(X) % 2 == 0):
+        median = (X_sort[int(len(X)/2-1)] + X_sort[int((len(X)/2))])/2
+    else:
+        median = X_sort[int((len(X)+1)/2-1)]
+    return median
+
+def stand_dev(X):
+    sum = 0
+    for x in X:
+        sum += (x-mean(X))**2
+    return ((1/(len(X)-1))*sum)**0.5
+
+def covariance(X, Y):
+    s_xy = 0
+    for i in range(0, len(X)):
+        s_xy += ((X[i]-mean(X))*(Y[i]-mean(Y)))
+    return s_xy/(len(X)-1)
+
+def correlation(X, Y):
+    r_xy = covariance(X,Y)/(stand_dev(X)*stand_dev(Y))
+    return r_xy
+
+def skewness(X):
+    m_3 = 0
+    for x in X:
+        m_3 += (x-mean(X))**3
+    m_3 = (m_3/len(X))
+    return m_3/((stand_dev(X))**3)
+
+def kurtosis(X):
+    m_4 = 0
+    for x in X:
+        m_4 += (x-mean(X))**4
+    m_4 = (m_4/len(X))
+    return m_4/((stand_dev(X))**4)
+
+def comp_LSE_b(X, Y):
+    upper_sum = 0
+    lower_sum = 0
+    for i in range(0, len(X)):
+        upper_sum += ((X[i]-mean(X))*(Y[i]-mean(Y)))
+        lower_sum += ((X[i]-mean(X))**2)
+    if (lower_sum > 0):
+        return upper_sum/lower_sum
+    else:
+        print("The lower sum is not positive!")
+
+def comp_LSE_a(X, Y):
+    b = comp_LSE_b(X, Y)
+    return mean(Y) - b*mean(X)
+
+def residual(X, Y, i): #e_i
+    b = comp_LSE_b(X, Y)
+    a = comp_LSE_a(X, Y)
+    return Y[i-1] - a - b*X[i-1]
+
+def SST(Y):
+    sum = 0
+    for i in range(0, len(Y)):
+        sum += ((Y[i]-mean(Y))**2)
+    return sum
+
+def SSE(X,Y):
+    b = comp_LSE_b(X, Y)
+    return (b**2)*SST(X)
+
+def SSR(X, Y):
+    sum = 0
+    for i in range(0, len(X)):
+        sum += (residual(X, Y, i+1)**2)
+    return sum
+
+def coef_det(X, Y): #R^2
+    return SSE(X, Y)/SST(Y)
+
+def DGP(n, alpha, beta, variance):
+    X = list(range(1,n)+1)
+    Y = list(range(1,n)+1)
+    epsilon = np.random.normal(0, variance**0.5, n)
+    for i in range(0, len(X)):
+        Y[i] = alpha + beta*X[i] + epsilon[i]
+    return Y
+
+def MSE_a_b(n, alpha, beta, variance, m):
+    MSE = [0,0]
+    X = range(1, n)
+    sum_b = 0
+    sum_a = 0
+    for i in range(0, m):
+        DGP(n, alpha, beta, variance)
+        b = comp_LSE_b(X,Y)
+        a = comp_LSE_a(X,Y)
+        sum_b += (b - beta)**2
+        sum_a += (a - alpha)**2
+    MSE[1] = (1/m)*sum_b
+    MSE[0] = (1/m)*sum_a
+    return MSE
+
+def comp_LSE_b2(X, Y):
+    upper_sum = 0
+    lower_sum = 0
+    for i in range(0, len(X)):
+        upper_sum += ((X[i] - mean(X)) * Y[i])
+        lower_sum += ((X[i] - mean(X)) * X[i])
+    return upper_sum / lower_sum
+
+def coeff_c(X):
+    sum = 0
+    c = range(0, len(X))
+    for i in range(0, len(X)):
+        sum += ((X[i]-mean(X))**2)
+    for j in range(0, len(c)):
+        c[i] = (X[i] - mean(X))/sum
+    return c
+
+def coeff_c(X):
+    d = range(0, len(X))
+    c = coeff_c(X)
+    for i in range(0, len(d)):
+        d[i] = 1/len(X) - mean(X)*c[i]
+    return d
+
+def var_b(X, variance):
+    sum = 0
+    for i in range(0, len(X)):
+        sum += ((X[i]-mean(X))**2)
+    return variance/sum
+
+def var_a(X, variance):
+    sum = 0
+    for i in range(0, len(X)):
+        sum += ((X[i]-mean(X))**2)
+    return variance * (1/len(X) + (mean(X)**2)/sum)
+
+def var_e(X, variance, i):
+    sum = 0
+    for j in range(0, len(X)):
+        sum += ((X[j]-mean(X))**2)
+    return (variance**2)*(1-1/len(X)-((X[i]-mean(X))**2)/sum)
+
+def estimator_s(X, Y): #standard error of the regression
+    return ((1/(len(X)-2))*SSR(X, Y))**0.5
+
+def s_b(X, Y): #standard error of b
+    sum = covariance(X, X)*(len(X)-1)
+    s = estimator_s(X, Y)
+    return s/(sum**0.5)
+
+def t_b (X, Y, beta=0):
+    b = comp_LSE_b(X, Y)
+    s = s_b(X, Y)
+    return (b - beta)/s
+
+def is_significant(b, s_b, c):
+    if (np.abs(b) > (c*s_b)):
+        return True
+    else:
+        return False
+
+def s_a(X, Y): #standard error of a
+    sum = (covariance(X,X))*(len(X)-1)
+    sum = 1/(len(X)) + (mean(X)**2)/sum
+    s = estimator_s(X, Y)
+    return s*(sum**0.5)
+
+def t_a(X, Y, alpha=0):
+    a = comp_LSE_a(X, Y)
+    s = s_a(X,Y)
+    return (a - alpha)/s
+
+
