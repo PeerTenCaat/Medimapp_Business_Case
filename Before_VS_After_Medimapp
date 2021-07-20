@@ -1,0 +1,497 @@
+####################################
+###                              ###
+###   BEFORE VS AFTER MEDIMAPP   ###
+###                              ###
+####################################
+
+# This file contains all functions used for the before vs after Medimapp approach.
+# To perform a function (section of code), all other sections need to be commented.
+
+##########################
+#   Importing Packages   #
+##########################
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from datetime import datetime
+import Peer_Econometrics as PE
+import scipy
+from scipy.stats import t
+import math
+from itertools import islice
+
+
+##########################################
+#   Functions used throughout the file   #
+##########################################
+
+# Checks whether an appointment is a consultation
+def Is_Consult(String):
+    if(String[:2] == "TC"):
+        return True
+    if (String[:2] == "BC"):
+        return True
+    if (String[:3] == "UIT"):
+        return True
+    if (String[:3] == "BEL"):
+        return True
+    if (String[:3] == "WEB"):
+        return True
+    if (String[:2] == "VC"):
+        return True
+    if (String[:2] == "VL"):
+        return True
+    if (String == "VRAAG"):
+        return True
+    if (String == "OVERIG"):
+        return True
+    if (String[:5] == "VOORL"):
+        return True
+    if (String[:2] == "CP"):
+        return True
+    return False
+
+# Drops appointments from the data that are not consultations
+def DropNoConsult(Data, ip=True):
+    todrop = []
+    for i in range(len(Data)):
+        if(not Is_Consult(Data.CODE[i])):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+def Is_BelConsult(String):  # Function that checks whether an appointment was a phone consultation.
+    if(String[:2] == "TC"):
+        return True
+    if (String[:2] == "BC"):
+        return True
+    if (String[:3] == "UIT"):
+        return True
+    if (String[:3] == "BEL"):
+        return True
+    if (String[:3] == "WEB"):
+        return True
+    if (String[:2] == "VC"):
+        return True
+    return False
+
+def DropNoBelConsult(Data, ip=True):  # Function that drops all appointments that are not phone consultations.
+    todrop = []
+    for i in range(len(Data)):
+        if(not Is_BelConsult(Data.CODE[i])):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+def Is_Controle(String):  # Function that checks whether an appointment was a check-up.
+    if (String[:2] == "CP"):
+        return True
+    return False
+
+def DropNoControle(Data, ip=True):  # Function that drops all appointments that are not a check-up.
+    todrop = []
+    for i in range(len(Data)):
+        if(not Is_Controle(Data.CODE[i])):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+
+
+###############################
+### Making Before and After ###
+###############################
+# This code creates the appointments set for the before and after patients for this approach.
+
+# Afspraken = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\borstkankerNew_Juiste_Afdelingen.csv', skiprows = 1, usecols=[1,2,3,4,5], names=['APPNUMBER','PATIENTNUMBER','AFDELING','CODE','DATETIME'], header = None, dtype = str)
+# Afspraken.DATETIME = pd.to_datetime(Afspraken.DATETIME, format = "%Y-%m-%d %H:%M")
+# AfsprakenGrouped = Afspraken.groupby('PATIENTNUMBER')["DATETIME"].apply(list).reset_index(name='AFSPRAKEN')
+# print(AfsprakenGrouped)
+# patientlist = list(AfsprakenGrouped.PATIENTNUMBER)
+# afsprakenlist = list(AfsprakenGrouped.AFSPRAKEN)
+#
+# StartVoor = pd.to_datetime("1-4-2017 00:00", format = "%d-%m-%Y %H:%M")
+# EndVoor = pd.to_datetime("1-4-2018 00:00", format = "%d-%m-%Y %H:%M")
+# StartNa = pd.to_datetime("1-1-2019 00:00", format = "%d-%m-%Y %H:%M")
+# EndNa = pd.to_datetime("1-1-2020 00:00", format = "%d-%m-%Y %H:%M")
+#
+# def BetweenDatesList(patientlist, afsprakenlist, lower, upper):
+#     List = []
+#     for i in range(len(patientlist)):
+#         afsprakenlist[i] = sorted(afsprakenlist[i])
+#         print(afsprakenlist[i])
+#         if (afsprakenlist[i][0] >= lower and afsprakenlist[i][0] < upper):
+#             print("lower: ", lower, "; afspraak: ", afsprakenlist[i][0], "; upper: ", upper)
+#             List.append(patientlist[i])
+#     return List
+#
+# VoorList = BetweenDatesList(patientlist, afsprakenlist, StartVoor, EndVoor)
+# NaList = BetweenDatesList(patientlist, afsprakenlist, StartNa, EndNa)
+#
+# def DropNotBetweenDates(Data, BetweenList, ip=True):
+#     todrop = []
+#     for i in range(len(Data)):
+#         if(Data.PATIENTNUMBER[i] not in BetweenList):
+#             todrop.append(i)
+#     if ip:
+#         Data.drop(todrop, inplace = ip)
+#         Data.reset_index(drop=True, inplace=ip)
+#     else: return Data.drop(todrop, inplace = ip)
+#
+# AfsprakenVoor = Afspraken.copy(deep=True)
+# AfsprakenNa = Afspraken.copy(deep=True)
+#
+# DropNotBetweenDates(AfsprakenVoor,VoorList)
+# DropNotBetweenDates(AfsprakenNa,NaList)
+#
+# AfsprakenVoor.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Afspraken_04_2017_tot_04_2018.csv')
+# AfsprakenNa.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Afspraken_01_2019_tot_01_2020.csv')
+
+
+
+#####################
+### Make Overview ###
+#####################
+# This code turns the appointments data set above into an overview with the necessary information.
+
+# PathwaysNew = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Pathways_Met_Handelingen_Met_Checklist.csv', skiprows = 1, usecols=[0,1], names=['ID','PATIENTNUMBER'], header = None, dtype = str)
+# AfsprakenNew = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Controle_04_2017_tot_04_2018.csv', skiprows = 1, usecols=[2,5], names=['PATIENTNUMBER','DATETIME'], header = None, dtype = str)
+#
+#
+# AfsprakenGrouped = AfsprakenNew.groupby('PATIENTNUMBER')
+# PathwaysGrouped = PathwaysNew.groupby('PATIENTNUMBER')
+# AfsprakenNewList = pd.DataFrame(AfsprakenGrouped.nunique())
+# PatientList = list(AfsprakenNewList.index)
+# AppNumberList = list(AfsprakenNewList.DATETIME)
+# PathwaysNewList = pd.DataFrame(PathwaysGrouped.nunique())
+# PatientList2 = list(PathwaysNewList.index)
+# LoginsList = list(PathwaysNewList.ID)
+#
+# Patients = []
+# Apps = []
+# Logins = []
+# for i in range(len(PatientList)):
+#     if(not(PatientList[i] in PatientList2)):
+#         Patients.append(PatientList[i])
+#         Apps.append(AppNumberList[i])
+#         Logins.append('0')
+#     else:
+#         for j in range(len(PatientList2)):
+#             if(PatientList[i] == PatientList2[j]):
+#                 Patients.append(PatientList[i])
+#                 Apps.append(AppNumberList[i])
+#                 Logins.append(LoginsList[j])
+#
+# data = {'Patientnummer': Patients, 'Aantal Afspraken': Apps, 'Aantal Logins': Logins}
+# Overzicht = pd.DataFrame(data, columns = ['Patientnummer','Aantal Afspraken','Aantal Logins'])
+# Overzicht.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_Controle_04_2017_tot_04_2018.csv')
+
+
+
+###############################
+### Ook Zonder Consult e.d. ###
+###############################
+# The code also adds the patients to the overview that have 0 consultations, as those are missing using the previous code.
+
+# AfsprakenVoor = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_Afspraken_naMM_Voor_2020_begonnen.csv', skiprows = 1, usecols=[1,2,3], names=['PATIENTNUMBER','AANTALAFSPRAKEN','LOGINS'], header = None, dtype = str)
+# ConsultenVoor = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_Consulten_naMM_Voor_2020_begonnen.csv', skiprows = 1, usecols=[1,2,3], names=['Patientnummer','Aantal Afspraken','Aantal Logins'], header = None, dtype = str)
+#
+# Set1 = set(list(AfsprakenVoor.PATIENTNUMBER))
+# Set2 = set(ConsultenVoor.Patientnummer)
+# ListIntersect = list(Set1.intersection(Set2))
+# print(ListIntersect)
+# Set3 = set(ListIntersect)
+# Set4 = Set1 - Set3
+# ListComplement = list(Set4)
+# print(ListComplement)
+# print("length is: ", len(ListComplement))
+#
+# ConsultList = ["0"]*len(ListComplement)
+# LoginList = [None]*len(ListComplement)
+# for i in range(len(ListComplement)):
+#     for j in range(len(AfsprakenVoor.PATIENTNUMBER)):
+#         if(ListComplement[i] == AfsprakenVoor.PATIENTNUMBER[j]):
+#             LoginList[i] = AfsprakenVoor.LOGINS[j]
+#
+# data = {'Patientnummer': ListComplement, 'Aantal Afspraken': ConsultList, 'Aantal Logins': LoginList}
+# OverzichtNew = pd.DataFrame(data, columns = ['Patientnummer','Aantal Afspraken','Aantal Logins'])
+#
+# ConsultenVoor = ConsultenVoor.append(OverzichtNew)
+#
+# ConsultenVoor.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_Consulten_naMM_Voor_2020_begonnen_WITH_0.csv')
+
+
+
+###############################
+### Voor VS Na MM Afspraken ###
+###############################
+# This code prints the mean number of the consultation types for the before and afer data sets.
+
+# AFSPRAKEN
+# OverzichtVoor = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_Afspraken_04_2017_tot_04_2018.csv', skiprows = 1, usecols=[1,2], names=['PATIENTNUMBER','AANTALAFSPRAKEN'], header = None, dtype = str)
+# OverzichtNa = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_Afspraken_01_2019_tot_01_2020.csv', skiprows = 1, usecols=[1,2], names=['PATIENTNUMBER','AANTALAFSPRAKEN'], header = None, dtype = str)
+#
+# SumVoor = 0
+# for i in range(len(OverzichtVoor.PATIENTNUMBER)):
+#     SumVoor += int(OverzichtVoor.AANTALAFSPRAKEN[i])
+# MeanVoor = SumVoor/len(OverzichtVoor.PATIENTNUMBER)
+#
+# SumNa = 0
+# for j in range(len(OverzichtNa.PATIENTNUMBER)):
+#     SumNa += int(OverzichtNa.AANTALAFSPRAKEN[j])
+# MeanNa = SumNa/len(OverzichtNa.PATIENTNUMBER)
+#
+# print("Patiënten die gestart zijn met hun traject tussen 04-2017 en 04-2018 hebben gemiddeld ", MeanVoor, " afspraken.")
+# print("Patiënten die gestart zijn met hun traject tussen 01-2019 en 01-2020 hebben gemiddeld ", MeanNa, " afspraken.")
+
+# CONSULTEN
+# OverzichtVoor = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_Consulten_04_2017_tot_04_2018_WITH_0.csv', skiprows = 1, usecols=[1,2], names=['PATIENTNUMBER','AANTALAFSPRAKEN'], header = None, dtype = str)
+# OverzichtNa = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_Consulten_01_2019_tot_01_2020_WITH_0.csv', skiprows = 1, usecols=[1,2], names=['PATIENTNUMBER','AANTALAFSPRAKEN'], header = None, dtype = str)
+#
+# SumVoor = 0
+# for i in range(len(OverzichtVoor.PATIENTNUMBER)):
+#     SumVoor += int(OverzichtVoor.AANTALAFSPRAKEN[i])
+# MeanVoor = SumVoor/len(OverzichtVoor.PATIENTNUMBER)
+#
+# SumNa = 0
+# for j in range(len(OverzichtNa.PATIENTNUMBER)):
+#     SumNa += int(OverzichtNa.AANTALAFSPRAKEN[j])
+# MeanNa = SumNa/len(OverzichtNa.PATIENTNUMBER)
+#
+# print("Patiënten die gestart zijn met hun traject tussen 04-2017 en 04-2018 hebben gemiddeld ", MeanVoor, " consulten.")
+# print("Patiënten die gestart zijn met hun traject tussen 01-2019 en 01-2020 hebben gemiddeld ", MeanNa, " consulten.")
+
+# BELCONSULTEN
+# OverzichtVoor = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_BelConsulten_04_2017_tot_04_2018_WITH_0.csv', skiprows = 1, usecols=[1,2], names=['PATIENTNUMBER','AANTALAFSPRAKEN'], header = None, dtype = str)
+# OverzichtNa = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_BelConsulten_01_2019_tot_01_2020_WITH_0.csv', skiprows = 1, usecols=[1,2], names=['PATIENTNUMBER','AANTALAFSPRAKEN'], header = None, dtype = str)
+#
+# SumVoor = 0
+# for i in range(len(OverzichtVoor.PATIENTNUMBER)):
+#     SumVoor += int(OverzichtVoor.AANTALAFSPRAKEN[i])
+# MeanVoor = SumVoor/len(OverzichtVoor.PATIENTNUMBER)
+#
+# SumNa = 0
+# for j in range(len(OverzichtNa.PATIENTNUMBER)):
+#     SumNa += int(OverzichtNa.AANTALAFSPRAKEN[j])
+# MeanNa = SumNa/len(OverzichtNa.PATIENTNUMBER)
+#
+# print("Patiënten die gestart zijn met hun traject tussen 04-2017 en 04-2018 hebben gemiddeld ", MeanVoor, " belconsulten.")
+# print("Patiënten die gestart zijn met hun traject tussen 01-2019 en 01-2020 hebben gemiddeld ", MeanNa, " belconsulten.")
+
+# CONTROLE
+# OverzichtVoor = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_Controle_04_2017_tot_04_2018_WITH_0.csv', skiprows = 1, usecols=[1,2], names=['PATIENTNUMBER','AANTALAFSPRAKEN'], header = None, dtype = str)
+# OverzichtNa = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_Controle_01_2019_tot_01_2020_WITH_0.csv', skiprows = 1, usecols=[1,2], names=['PATIENTNUMBER','AANTALAFSPRAKEN'], header = None, dtype = str)
+#
+# SumVoor = 0
+# for i in range(len(OverzichtVoor.PATIENTNUMBER)):
+#     SumVoor += int(OverzichtVoor.AANTALAFSPRAKEN[i])
+# MeanVoor = SumVoor/len(OverzichtVoor.PATIENTNUMBER)
+#
+# SumNa = 0
+# for j in range(len(OverzichtNa.PATIENTNUMBER)):
+#     SumNa += int(OverzichtNa.AANTALAFSPRAKEN[j])
+# MeanNa = SumNa/len(OverzichtNa.PATIENTNUMBER)
+#
+# print("Patiënten die gestart zijn met hun traject tussen 04-2017 en 04-2018 hebben gemiddeld ", MeanVoor, " controles.")
+# print("Patiënten die gestart zijn met hun traject tussen 01-2019 en 01-2020 hebben gemiddeld ", MeanNa, " controles.")
+
+# Patiënten die gestart zijn met hun traject tussen 04-2017 en 04-2018 hebben gemiddeld  42.13292117465224  afspraken.
+# Patiënten die gestart zijn met hun traject tussen 01-2019 en 01-2020 hebben gemiddeld  38.4  afspraken.
+# Patiënten die gestart zijn met hun traject tussen 04-2017 en 04-2018 hebben gemiddeld  21.835443037974684  consulten.
+# Patiënten die gestart zijn met hun traject tussen 01-2019 en 01-2020 hebben gemiddeld  20.66521739130435  consulten.
+# Patiënten die gestart zijn met hun traject tussen 04-2017 en 04-2018 hebben gemiddeld  13.452861952861953  belconsulten.
+# Patiënten die gestart zijn met hun traject tussen 01-2019 en 01-2020 hebben gemiddeld  14.171052631578947  belconsulten.
+# Patiënten die gestart zijn met hun traject tussen 04-2017 en 04-2018 hebben gemiddeld  9.518821603927988  controles.
+# Patiënten die gestart zijn met hun traject tussen 01-2019 en 01-2020 hebben gemiddeld  7.402912621359223  controles.
+
+# WITH 0
+# Patiënten die gestart zijn met hun traject tussen 04-2017 en 04-2018 hebben gemiddeld  42.13292117465224  afspraken.
+# Patiënten die gestart zijn met hun traject tussen 01-2019 en 01-2020 hebben gemiddeld  38.4  afspraken.
+# Patiënten die gestart zijn met hun traject tussen 04-2017 en 04-2018 hebben gemiddeld  21.32921174652241  consulten.
+# Patiënten die gestart zijn met hun traject tussen 01-2019 en 01-2020 hebben gemiddeld  20.22553191489362  consulten.
+# Patiënten die gestart zijn met hun traject tussen 04-2017 en 04-2018 hebben gemiddeld  12.643987341772151  belconsulten.
+# Patiënten die gestart zijn met hun traject tussen 01-2019 en 01-2020 hebben gemiddeld  14.047826086956523  belconsulten.
+# Patiënten die gestart zijn met hun traject tussen 04-2017 en 04-2018 hebben gemiddeld  9.20253164556962  controles.
+# Patiënten die gestart zijn met hun traject tussen 01-2019 en 01-2020 hebben gemiddeld  6.630434782608695  controles.
+
+
+
+#######################################
+### Tussen 17-03-2017 en 01-01-2018 ###
+#######################################
+# This code makes an appointments data set for patients from before Medimapp was introduced. 
+# This group is used to compare the non-users from the linear regression with "standard patients", to show that there is a certain bias in the linear regression.
+
+# Afspraken = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\borstkankerNew_Juiste_Afdelingen.csv', skiprows = 1, usecols=[1,2,3,4,5], names=['APPNUMBER','PATIENTNUMBER','AFDELING','CODE','DATETIME'], header = None, dtype = str)
+# Afspraken.DATETIME = pd.to_datetime(Afspraken.DATETIME, format = "%Y-%m-%d %H:%M")
+# AfsprakenGrouped = Afspraken.groupby('PATIENTNUMBER')["DATETIME"].apply(list).reset_index(name='AFSPRAKEN')
+# print(AfsprakenGrouped)
+# patientlist = list(AfsprakenGrouped.PATIENTNUMBER)
+# afsprakenlist = list(AfsprakenGrouped.AFSPRAKEN)
+#
+# StartVoor = pd.to_datetime("17-3-2017 00:00", format = "%d-%m-%Y %H:%M")
+# EndVoor = pd.to_datetime("1-1-2018 00:00", format = "%d-%m-%Y %H:%M")
+
+# def BetweenDatesList(patientlist, afsprakenlist, lower, upper):
+#     List = []
+#     for i in range(len(patientlist)):
+#         afsprakenlist[i] = sorted(afsprakenlist[i])
+#         print(afsprakenlist[i])
+#         if (afsprakenlist[i][0] >= lower and afsprakenlist[i][0] < upper):
+#             print("lower: ", lower, "; afspraak: ", afsprakenlist[i][0], "; upper: ", upper)
+#             List.append(patientlist[i])
+#     return List
+#
+# VoorList = BetweenDatesList(patientlist, afsprakenlist, StartVoor, EndVoor)
+#
+# def DropNotBetweenDates(Data, BetweenList, ip=True):
+#     todrop = []
+#     for i in range(len(Data)):
+#         if(Data.PATIENTNUMBER[i] not in BetweenList):
+#             todrop.append(i)
+#     if ip:
+#         Data.drop(todrop, inplace = ip)
+#         Data.reset_index(drop=True, inplace=ip)
+#     else: return Data.drop(todrop, inplace = ip)
+#
+# AfsprakenVoor = Afspraken.copy(deep=True)
+#
+# DropNotBetweenDates(AfsprakenVoor,VoorList)
+#
+# AfsprakenVoor.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Afspraken_17_03_2017_tot_01_01_2018.csv')
+
+
+
+#####################
+### Nieuwe t-test ###
+#####################
+# This code performs the t test for the different consultation types comparing before and after Medimapp.
+
+#CONSULTEN
+OverzichtVoor = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_Consulten_04_2017_tot_04_2018_WITH_0.csv', skiprows = 1, usecols=[1,2], names=['PATIENTNUMBER','AANTALAFSPRAKEN'], header = None, dtype = str)
+OverzichtNa = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_Consulten_01_2019_tot_01_2020_WITH_0.csv', skiprows = 1, usecols=[1,2], names=['PATIENTNUMBER','AANTALAFSPRAKEN'], header = None, dtype = str)
+
+print("CONSULTEN")
+OverzichtVoor.AANTALAFSPRAKEN = OverzichtVoor.AANTALAFSPRAKEN.astype(float)
+OverzichtNa.AANTALAFSPRAKEN = OverzichtNa.AANTALAFSPRAKEN.astype(float)
+s_Voor = PE.stand_dev(OverzichtVoor.AANTALAFSPRAKEN)
+s_Na = PE.stand_dev(OverzichtNa.AANTALAFSPRAKEN)
+print("s_Voor is: ", s_Voor)
+print("s_Na is: ", s_Na)
+print(s_Voor/s_Na)
+
+n = len(OverzichtVoor.PATIENTNUMBER)
+m = len(OverzichtNa.PATIENTNUMBER)
+print("n+m is: ", n+m)
+s_z = math.sqrt((s_Voor**2)/n + (s_Na**2)/m)
+print("s_delta is: ", s_z)
+
+mean_Voor = PE.mean(OverzichtVoor.AANTALAFSPRAKEN)
+mean_Na = PE.mean(OverzichtNa.AANTALAFSPRAKEN)
+
+df = (s_z**4)/((((s_Voor**2)/n)**2)/(n-1) + (((s_Na**2)/m)**2)/(m-1))
+DF = m+n - 2
+print("df is: ", df)
+print("DF is: ", DF)
+
+T = (mean_Voor - mean_Na)/(s_z)
+t_value = t.ppf(1-0.05/2, df)
+
+if(t_value<T):
+    print("T=",T)
+    print("t=",t_value)
+    print("We verwerpen H0!")
+else:
+    print("T=", T)
+    print("t=", t_value)
+    print("We verwerpen H0 niet.")
+
+# BELCONSULTEN
+OverzichtVoor = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_BelConsulten_04_2017_tot_04_2018_WITH_0.csv', skiprows = 1, usecols=[1,2], names=['PATIENTNUMBER','AANTALAFSPRAKEN'], header = None, dtype = str)
+OverzichtNa = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_BelConsulten_01_2019_tot_01_2020_WITH_0.csv', skiprows = 1, usecols=[1,2], names=['PATIENTNUMBER','AANTALAFSPRAKEN'], header = None, dtype = str)
+
+print()
+print("BELCONSULTEN")
+OverzichtVoor.AANTALAFSPRAKEN = OverzichtVoor.AANTALAFSPRAKEN.astype(float)
+OverzichtNa.AANTALAFSPRAKEN = OverzichtNa.AANTALAFSPRAKEN.astype(float)
+s_Voor = PE.stand_dev(OverzichtVoor.AANTALAFSPRAKEN)
+s_Na = PE.stand_dev(OverzichtNa.AANTALAFSPRAKEN)
+print("s_Voor is: ", s_Voor)
+print("s_Na is: ", s_Na)
+print(s_Voor/s_Na)
+
+n = len(OverzichtVoor.PATIENTNUMBER)
+m = len(OverzichtNa.PATIENTNUMBER)
+print("n+m is: ", n+m)
+s_z = math.sqrt((s_Voor**2)/n + (s_Na**2)/m)
+print("s_delta is: ", s_z)
+
+mean_Voor = PE.mean(OverzichtVoor.AANTALAFSPRAKEN)
+mean_Na = PE.mean(OverzichtNa.AANTALAFSPRAKEN)
+
+df = (s_z**4)/((((s_Voor**2)/n)**2)/(n-1) + (((s_Na**2)/m)**2)/(m-1))
+DF = m+n - 2
+print("df is: ", df)
+print("DF is: ", DF)
+
+T = (mean_Voor - mean_Na)/(s_z)
+t_value = t.ppf(1-0.05/2, df)
+
+if(t_value<T):
+    print("T=",T)
+    print("t=",t_value)
+    print("We verwerpen H0!")
+else:
+    print("T=", T)
+    print("t=", t_value)
+    print("We verwerpen H0 niet.")
+
+# CONTROLE
+OverzichtVoor = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_Controle_04_2017_tot_04_2018_WITH_0.csv', skiprows = 1, usecols=[1,2], names=['PATIENTNUMBER','AANTALAFSPRAKEN'], header = None, dtype = str)
+OverzichtNa = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overzicht_BK_Controle_01_2019_tot_01_2020_WITH_0.csv', skiprows = 1, usecols=[1,2], names=['PATIENTNUMBER','AANTALAFSPRAKEN'], header = None, dtype = str)
+
+print()
+print("CONTROLE")
+OverzichtVoor.AANTALAFSPRAKEN = OverzichtVoor.AANTALAFSPRAKEN.astype(float)
+OverzichtNa.AANTALAFSPRAKEN = OverzichtNa.AANTALAFSPRAKEN.astype(float)
+print(scipy.stats.ttest_ind(OverzichtVoor.AANTALAFSPRAKEN, OverzichtNa.AANTALAFSPRAKEN, equal_var=True))
+# s_Voor = PE.stand_dev(OverzichtVoor.AANTALAFSPRAKEN)
+# s_Na = PE.stand_dev(OverzichtNa.AANTALAFSPRAKEN)
+# print("s_Voor is: ", s_Voor)
+# print("s_Na is: ", s_Na)
+# print(s_Voor/s_Na)
+#
+# n = len(OverzichtVoor.PATIENTNUMBER)
+# m = len(OverzichtNa.PATIENTNUMBER)
+# print("n+m is: ", n+m)
+# s_z = math.sqrt((s_Voor**2)/n + (s_Na**2)/m)
+# print("s_delta is: ", s_z)
+#
+# mean_Voor = PE.mean(OverzichtVoor.AANTALAFSPRAKEN)
+# mean_Na = PE.mean(OverzichtNa.AANTALAFSPRAKEN)
+#
+# df = (s_z**4)/((((s_Voor**2)/n)**2)/(n-1) + (((s_Na**2)/m)**2)/(m-1))
+# DF = m+n - 2
+# print("df is: ", df)
+# print("DF is: ", DF)
+#
+# T = (mean_Voor - mean_Na)/(s_z)
+# t_value = t.ppf(1-0.05/2, df)
+#
+# if(t_value<T):
+#     print("T=",T)
+#     print("t=",t_value)
+#     print("We verwerpen H0!")
+# else:
+#     print("T=", T)
+#     print("t=", t_value)
+#     print("We verwerpen H0 niet.")
+
+#####################
