@@ -1,0 +1,1327 @@
+#############################
+###                       ###
+###   GENERAL FUNCTIONS   ###
+###                       ###
+#############################
+
+# In this file are all general functions that do not belong to a specific approach.
+# To perform a function, all other functions need to be commented.
+
+##########################
+#   Importing Packages   #
+##########################
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import numpy as np
+from datetime import datetime, timedelta
+import Peer_Econometrics as PE
+import math
+import scipy
+from scipy.stats import t
+from dateutil.relativedelta import relativedelta
+from itertools import islice
+
+##########################################
+#   Functions used throughout the file   #
+##########################################
+
+def Is_Consult(String):  # This function checks whether an appointment is a consultation
+    if(String[:2] == "TC"):
+        return True
+    if (String[:2] == "BC"):
+        return True
+    if (String[:3] == "UIT"):
+        return True
+    if (String[:3] == "BEL"):
+        return True
+    if (String[:3] == "WEB"):
+        return True
+    if (String[:2] == "VC"):
+        return True
+    if (String[:2] == "VL"):
+        return True
+    if (String == "VRAAG"):
+        return True
+    if (String == "OVERIG"):
+        return True
+    if (String[:5] == "VOORL"):
+        return True
+    if (String[:2] == "CP"):
+        return True
+    return False
+
+def DropNoConsult(Data, ip=True):  # Drops all appointments from the dataset that are not consultations.
+    todrop = []
+    for i in range(len(Data)):
+        if(not Is_Consult(Data.CODE[i])):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+def DropInList(Data, List, ip=True):  # Drops all rows from the data for which the ID is in the List.
+    todrop = []
+    for i in range(len(Data)):
+        if(Data.ID[i] in List):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+def DropInList2(Data, List, ip=True):  # Drops all rows from the data for which the PATIENTNUMBER is in the list
+    todrop = []
+    for i in range(len(Data)):
+        if(Data.PATIENTNUMBER[i] in List):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+def DropInList3(Data, List, ip=True):  #Same as 1, but for specific data set with patientnumbers with decimals.
+    todrop = []
+    for i in range(len(Data)):
+        fl = float(Data.ID[i])
+        floor = math.floor(fl)
+        if(floor in List):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+def DropInList4(Data, List, ip=True):  # Drops all rows from the data for which the Patientnumber is in the list.
+    todrop = []
+    for i in range(len(Data)):
+        if(Data.Patientnummer[i] in List):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace = ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else: return Data.drop(todrop, inplace = ip)
+
+
+
+#############################
+### Make Consultation set ###
+#############################
+# This code filters the appointments data set such that it only contains consultations.
+
+# AfsprakenNew = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\borstkankerNew_Juiste_Afdelingen.csv', skiprows = 1, usecols=[1,2,3,4,5], names=['APPNUMBER','PATIENTNUMBER','AFDELING','CODE','DATETIME'], header = None, dtype = str)
+#
+# DropNoConsult(AfsprakenNew)
+#
+# AfsprakenNew.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Consulten_BK.csv')
+
+
+
+#####################
+### COX-Overzicht ###
+#####################
+# This very long piece of code creates the data set used for the Cox and Andersen Gill regression.
+
+# Afspraken = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Consulten_na_17_03_2017.csv', skiprows = 1, usecols=[1,2,3,4,5], names=['APPNUMBER','PATIENTNUMBER','AFDELING','CODE','DATETIME'], header = None, dtype = str)
+# AfsprakenBK = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Afspraken_na_17_03_2017.csv', skiprows = 1, usecols=[1,2,3,4,5], names=['APPNUMBER','PATIENTNUMBER','AFDELING','CODE','DATETIME'], header = None, dtype = str)
+# Leeftijd = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\patients_age.csv', skiprows = 1, usecols=[0,1], names=['PATIENTNUMBER','GEBDAT'], header = None, dtype = str)
+# Pathways = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Pathways_Mix_NoDoubles.csv', dtype = str)
+# FirstApp = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_first_appointments.csv', dtype = str)
+#
+# Set1 = set(list(Leeftijd.PATIENTNUMBER))
+# Set2 = set(Afspraken.PATIENTNUMBER)
+# ListIntersect = list(Set1.intersection(Set2))
+# Set3 = set(ListIntersect)
+# Set4 = Set2 - Set3
+# ListComplement = list(Set4)
+# print("length is: ", len(ListComplement))
+#
+# Set2BK = set(AfsprakenBK.PATIENTNUMBER)
+# ListIntersectBK = list(Set1.intersection(Set2))
+# Set3BK = set(ListIntersectBK)
+# Set4BK = Set2BK - Set3BK
+# ListComplementBK = list(Set4BK)
+# print("length is: ", len(ListComplementBK))
+#
+# DropInList2(Afspraken, ListComplement)
+# DropInList2(AfsprakenBK, ListComplementBK)
+# Afspraken["DATETIME"].replace('', np.nan, inplace=True)
+# Afspraken.dropna(subset=["DATETIME"], inplace=True)
+#
+# Afspraken.DATETIME = pd.to_datetime(Afspraken.DATETIME, format = "%Y-%m-%d %H:%M")
+# AfsprakenBK.DATETIME = pd.to_datetime(AfsprakenBK.DATETIME, format = "%Y-%m-%d %H:%M")
+# Pathways.DATETIME = pd.to_datetime(Pathways.DATETIME, format = "%Y-%m-%d %H:%M:%S.%f")
+# Leeftijd.GEBDAT = pd.to_datetime(Leeftijd.GEBDAT, format = "%Y-%m-%d %H:%M:%S.%f")
+# FirstApp.DATETIME = pd.to_datetime(FirstApp.DATETIME, format = "%Y-%m-%d %H:%M")
+#
+# DataEnd = pd.to_datetime("29-1-2021  15:45:00", format = "%d-%m-%Y %H:%M:%S")
+#
+# Afspraken = Afspraken.sort_values(['PATIENTNUMBER', 'DATETIME'])
+# AfsprakenBK = AfsprakenBK.sort_values(['PATIENTNUMBER', 'DATETIME'])
+#
+# Afspraken_Grouped = Afspraken.groupby('PATIENTNUMBER')["DATETIME"].apply(list).reset_index(name='DATETIMES')
+# patientlist = list(Afspraken_Grouped.PATIENTNUMBER)
+# consultenlist = list(Afspraken_Grouped.DATETIMES)
+#
+# AfsprakenBK_Grouped = AfsprakenBK.groupby('PATIENTNUMBER')["DATETIME"].apply(list).reset_index(name='DATETIMES')
+# patientlistBK = list(AfsprakenBK_Grouped.PATIENTNUMBER)
+# afsprakenlistBK = list(AfsprakenBK_Grouped.DATETIMES)
+#
+# Pathways_Grouped = Pathways.groupby('PATIENTNUMBER')
+# Group = Pathways_Grouped.get_group("0697954")
+# print(Group)
+# print(Group.DATETIME)
+# Group.reset_index(drop=True, inplace=True)
+# print("0   ", Group.DATETIME[0])
+# print("1   ", Group.DATETIME[1])
+# print("2   ", Group.DATETIME[2])
+#
+# # for i in range(len(patientlist)):
+# #     j = patientlistBK.index(patientlist[i])
+# #     start = afsprakenlistBK[j][0]
+# #     consultenlist[i].insert(0,start)
+#
+# for i in range(len(patientlist)):
+#     for j in range(len(FirstApp.PATIENTNUMBER)):
+#         if(patientlist[i] == FirstApp.PATIENTNUMBER[j]):
+#             start = FirstApp.DATETIME[j]
+#             consultenlist[i].insert(0, start)
+# for i in range(len(patientlistBK)):
+#     if not (patientlistBK[i] in patientlist):
+#         patientlist.append(patientlistBK[i])
+#         consultenlist.append([afsprakenlistBK[i][0]])
+#
+# def GivePathwayInfo(Data, patientnumber, datetime, daysbefore):
+#     Group = Data.get_group(str(patientnumber))
+#     Group.reset_index(drop=True, inplace=True)
+#     datelower = datetime - timedelta(days=daysbefore)
+#     index = []
+#     for i in range(len(Group.DATETIME)):
+#         if (datelower < Group.DATETIME[i] and Group.DATETIME[i] < datetime):
+#             index.append(i)
+#     if (len(index) == 0):
+#         return [0,0,0,0,0,0]
+#     print(index)
+#     USER = 0
+#     WP = 0
+#     CP = 0
+#     LOC = 0
+#     ART = 0
+#     CL = 0
+#     for j in index:
+#         WP += int(Group["No WAYPOINT"][j])
+#         CP += int(Group["No CAREPROVIDER"][j])
+#         LOC += int(Group["No LOCATION"][j])
+#         ART += int(Group["No ARTICLE"][j])
+#         CL += int(Group["No CHECKLIST"][j])
+#     if (WP > 0):
+#         USER = 1
+#     return [USER, WP, CP, LOC, ART, CL]
+#
+# def GiveGlobalPathwayInfo(Data, patientnumber, datetime):
+#     Group = Data.get_group(str(patientnumber))
+#     Group.reset_index(drop=True, inplace=True)
+#     index = []
+#     for i in range(len(Group.DATETIME)):
+#         if (Group.DATETIME[i] < datetime):
+#             index.append(i)
+#     if (len(index) == 0):
+#         return [0,0]
+#     WP = 0
+#     for j in index:
+#         WP += int(Group["No WAYPOINT"][j])
+#     return [WP,1]
+#
+# def UpdateUser(Pathways, Data, patientnumber, datetime, daysbefore, User, Wp, Cp, Loc, Art, Cl, TotalUser, IsUser):
+#     PathwaysPatients = list(Pathways.PATIENTNUMBER)
+#     print(patientnumber)
+#     if (patientnumber in PathwaysPatients):
+#         print("It works")
+#         List = GivePathwayInfo(Data, patientnumber, datetime, daysbefore)
+#         List2 = GiveGlobalPathwayInfo(Data, patientnumber, datetime)
+#     else:
+#         List = [0,0,0,0,0,0]
+#         List2 = [0,0]
+#     User.append(List[0])
+#     Wp.append(List[1])
+#     Cp.append(List[2])
+#     Loc.append(List[3])
+#     Art.append(List[4])
+#     Cl.append(List[5])
+#     TotalUser.append(List2[0])
+#     IsUser.append(List2[1])
+#
+# def MakeCutList(patientnumber, patientlistBK, afsprakenlistBK):
+#     CutList = []
+#     enddate = pd.to_datetime("1-3-2021 00:00", format = "%d-%m-%Y %H:%M")
+#     for i in range(len(patientlistBK)):
+#         if (patientlistBK[i] == patientnumber):
+#             afsprakenlistBK[i] = sorted(afsprakenlistBK[i])
+#             CutList.append(afsprakenlistBK[i][0])
+#             for j in range(1,len(afsprakenlistBK[i])):
+#                 days = (afsprakenlistBK[i][j] - afsprakenlistBK[i][j - 1]).days
+#                 if (days > 75):
+#                     CutList.append(afsprakenlistBK[i][j])
+#             CutList.append(enddate)
+#     return CutList
+#
+# def Cut(i, patientlist, consultenlist, patientlistBK, afsprakenlistBK):
+#     NewList = []
+#     CutList = MakeCutList(patientlist[i], patientlistBK, afsprakenlistBK)
+#     if (len(CutList) == 2):
+#         return [consultenlist]
+#     IndexList = [0]*(len(CutList)-1)
+#     for k in range(1, len(CutList)):
+#         j = 0
+#         while(j < len(consultenlist[i]) and consultenlist[i][j] < CutList[k]):
+#             j += 1
+#             IndexList[k-1] += 1
+#     NewList.append(consultenlist[i][0:IndexList[0]])
+#     for z in range(1, len(IndexList)):
+#         NewList.append(consultenlist[i][IndexList[z-1]:IndexList[z]])
+#     return NewList
+#
+#
+#
+#
+# ID = []
+# START = []
+# STOP = []
+# STATUS = []
+# AGE = []
+# LASTCONS = []
+# USER = []
+# WP = []
+# CP = []
+# LOC = []
+# ART = []
+# CL = []
+# TOTALUSER = []
+# ISUSER = []
+# ENUM = []
+#
+# def ConsultCut(i, consultenlist):
+#     m = 1
+#     LengthList = []
+#     for l in range(1, len(consultenlist[i])):
+#         days = abs((consultenlist[i][j] - consultenlist[i][j - 1]).days)
+#         m += 1
+#         if (days > 75):
+#             LengthList.append(m-1)
+#             m = 1
+#     Inputt = iter(consultenlist[i])
+#     Output = [list(islice(Inputt, elem)) for elem in LengthList]
+#     return Output
+#
+# for i in range(len(patientlist)):
+#     consultenlist[i] = ConsultCut(i, consultenlist)
+#     for m in range(len(consultenlist[i])):
+#         # print(i)
+#         START.append("0")
+#         totaldays = 0
+#         LeeftijdList = list(Leeftijd.PATIENTNUMBER)
+#         k = LeeftijdList.index(patientlist[i])
+#         ENUM.append(1)
+#         for j in range(1, len(consultenlist[i][m])):
+#             ID.append(patientlist[i])
+#             days = abs((consultenlist[i][m][j] - consultenlist[i][m][j - 1]).days)
+#             if (days > 75):
+#                 totaldays += days
+#             START.append(str(totaldays))
+#             STOP.append(str(totaldays))
+#             STATUS.append("1")
+#             AGE.append(str(abs(relativedelta(consultenlist[i][j - 1], Leeftijd.GEBDAT[k]).years)))
+#             LASTCONS.append(str(days))
+#             UpdateUser(Pathways, Pathways_Grouped, patientlist[i], consultenlist[i][j - 1], 7, USER, WP, CP, LOC, ART,
+#                        CL, TOTALUSER, ISUSER)
+#             ENUM.append(j + 1)
+#         STOP.append(str(totaldays + abs((DataEnd - consultenlist[i][-1]).days)))
+#         STATUS.append("0")
+#         AGE.append(str(abs(relativedelta(consultenlist[i][-1], Leeftijd.GEBDAT[k]).years)))
+#         LASTCONS.append(str(abs((DataEnd - consultenlist[i][-1]).days)))
+#         UpdateUser(Pathways, Pathways_Grouped, patientlist[i], consultenlist[i][-1], 7, USER, WP, CP, LOC, ART, CL,
+#                    TOTALUSER, ISUSER)
+#         ID.append(patientlist[i])
+#
+# for i in range(len(patientlist)):
+#     #print(i)
+#     START.append("0")
+#     totaldays = 0
+#     LeeftijdList = list(Leeftijd.PATIENTNUMBER)
+#     k = LeeftijdList.index(patientlist[i])
+#     ENUM.append(1)
+#     for j in range(1, len(consultenlist[i])):
+#         ID.append(patientlist[i])
+#         days = abs((consultenlist[i][j] - consultenlist[i][j - 1]).days)
+#         if (days > 75):
+#         totaldays += days
+#         START.append(str(totaldays))
+#         STOP.append(str(totaldays))
+#         STATUS.append("1")
+#         AGE.append(str(abs(relativedelta(consultenlist[i][j-1], Leeftijd.GEBDAT[k]).years)))
+#         LASTCONS.append(str(days))
+#         UpdateUser(Pathways, Pathways_Grouped, patientlist[i], consultenlist[i][j-1], 7, USER, WP, CP, LOC, ART, CL, TOTALUSER, ISUSER)
+#         ENUM.append(j+1)
+#     STOP.append(str(totaldays + abs((DataEnd - consultenlist[i][-1]).days)))
+#     STATUS.append("0")
+#     AGE.append(str(abs(relativedelta(consultenlist[i][-1], Leeftijd.GEBDAT[k]).years)))
+#     LASTCONS.append(str( abs((DataEnd - consultenlist[i][-1]).days)))
+#     UpdateUser(Pathways, Pathways_Grouped, patientlist[i], consultenlist[i][-1], 7, USER, WP, CP, LOC, ART, CL, TOTALUSER, ISUSER)
+#     ID.append(patientlist[i])
+#
+# print(len(ID))
+# print(len(START))
+# print(len(STOP))
+# print(len(STATUS))
+# print(len(AGE))
+# print(len(LASTCONS))
+# print(len(USER))
+# print(len(WP))
+# print(len(ENUM))
+# print(len(TOTALUSER))
+# print(len(ISUSER))
+#
+#
+# data = {'ID': ID, 'start': START, 'stop': STOP, 'status': STATUS, 'age': AGE, 'lastcons': LASTCONS, 'weekuser': USER, 'waypoints': WP, 'careprovider': CP, 'location': LOC, 'article': ART, 'checklist': CL, 'enum': ENUM, 'totaluser': TOTALUSER, 'globaluser': ISUSER}
+# Overzicht = pd.DataFrame(data, columns = ['ID','start','stop','status','age','lastcons','weekuser','waypoints','careprovider','location','article','checklist','enum','totaluser','globaluser'])
+# Overzicht.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overzicht_BK_with_Cut.csv', index=False)
+
+
+
+######################################
+### COX-Overzicht Extra regressors ###
+######################################
+# This code adds a column with the pathway variant ID of the patient to the Cox overview.
+
+# COX = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_BK_all_userinfo_No_doubles.csv', dtype = str)
+#
+# Saved_Pathways = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\AnalyticsDataCompleet.csv', skiprows = 1, usecols=[1,5,11], names=['PATIENTNUMBER','PATHWAYVARIANTID','DATE'], header = None, dtype = str)
+#
+# Saved_Pathways = Saved_Pathways.sort_values(['PATIENTNUMBER', 'DATE'])
+#
+# List1 = list(Saved_Pathways.PATIENTNUMBER)
+# for s in range(len(List1)):
+#     List1[s] = int(List1[s])
+# Set1 = set(List1)
+# #Set1 = list(Set1)
+# print(Set1)
+# print(len(Set1))
+# List2 = list(COX.ID)
+# for l in range(len(List2)):
+#     List2[l] = float(List2[l])
+#     List2[l] = math.floor(List2[l])
+# Set2 = set(List2)
+# ListIntersect = list(Set1.intersection(Set2))
+# print(ListIntersect)
+# print("length is: ", len(ListIntersect))
+# Set3 = set(ListIntersect)
+# Set4 = Set2 - Set3
+# ListComplement = list(Set4)
+# print(ListComplement)
+# print("length is: ", len(ListComplement))
+#
+# DropInList3(COX, ListComplement)
+#
+# Saved_Pathways_Grouped = Saved_Pathways.groupby('PATIENTNUMBER')["PATHWAYVARIANTID"].apply(list).reset_index(name='PATHWAYS')
+# print(Saved_Pathways_Grouped)
+# patientlist = list(Saved_Pathways_Grouped.PATIENTNUMBER)
+# afsprakenlist = list(Saved_Pathways_Grouped.PATHWAYS)
+#
+# List3 = list(COX.ID)
+# for w in range(len(List3)):
+#     List3[w] = float(List3[w])
+#     List3[w] = math.floor(List3[w])
+# for a in range(len(patientlist)):
+#     patientlist[a] = int(patientlist[a])
+#
+# GROUP = []
+# for i in range(len(List3)):
+#     j = patientlist.index(List3[i])
+#     if ("9" in afsprakenlist[j]): #"1" in afsprakenlist[j]
+#         GROUP.append("9")
+#     elif ("8" in afsprakenlist[j]):
+#         GROUP.append("8")
+#     elif ("6" in afsprakenlist[j]):
+#         GROUP.append("6")
+#     elif ("5" in afsprakenlist[j]):
+#         GROUP.append("5")
+#     elif ("53" in afsprakenlist[j]):
+#         GROUP.append("53")
+#     elif ("52" in afsprakenlist[j]):
+#         GROUP.append("52")
+#     elif ("51" in afsprakenlist[j]):
+#         GROUP.append("51")
+#     elif ("50" in afsprakenlist[j]):
+#         GROUP.append("50")
+#     elif ("1" in afsprakenlist[j]):
+#         GROUP.append("1")
+#     elif ("33" in afsprakenlist[j]):
+#         GROUP.append("33")
+#     # if (afsprakenlist[j][-1] == "1"): #"1" in afsprakenlist[j]
+#     #     GROUP.append("1")
+#     # if (afsprakenlist[j][-1] == "5"):
+#     #     GROUP.append("5")
+#     # if (afsprakenlist[j][-1] == "6"):
+#     #     GROUP.append("6")
+#     # if (afsprakenlist[j][-1] == "8"):
+#     #     GROUP.append("8")
+#     # if (afsprakenlist[j][-1] == "9"):
+#     #     GROUP.append("9")
+#     # if (afsprakenlist[j][-1] == "33"):
+#     #     GROUP.append("33")
+#     # if (afsprakenlist[j][-1] == "50"):
+#     #     GROUP.append("50")
+#     # if (afsprakenlist[j][-1] == "51"):
+#     #     GROUP.append("51")
+#     # if (afsprakenlist[j][-1] == "52"):
+#     #     GROUP.append("52")
+#     # if (afsprakenlist[j][-1] == "53"):
+#     #     GROUP.append("53")
+#
+# print(len(GROUP))
+# COX["group"] = GROUP
+#
+# COX.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_BK_all_userinfo_ND_Groups.csv')
+
+
+
+####################
+### Not Same Day ###
+####################
+# This code fixes the problem of multiple consultations happening on the same day for Cox regression.
+
+# COX = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_BK_all_userinfo.csv', dtype = str)
+#
+# COX.stop[0] = 0.5
+# COX.start[1] = 0.5
+#
+# i = 1
+# while (i < len(COX.ID)):
+#     index = []
+#     k = 0
+#     while((COX.ID[i] == COX.ID[i-1] and COX.lastcons[i] == "0") or (not(COX.ID[i] == COX.ID[i-1]) and COX.start[i] == "0" and COX.stop[i] == "0")):
+#         index.append(i)
+#         i += 1
+#     if (len(index) > 0):
+#         for j in range(len(index)):
+#             New_Value = str(float(COX.stop[index[j]]) + (j+1)/(len(index)+1))
+#             COX.stop[index[j]] = New_Value
+#             if(COX.ID[index[j]] == COX.ID[index[j]+1]):
+#                 COX.start[index[j]+1] = New_Value
+#     i += 1
+#
+# COX.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_BK_all_userinfo_No_doubles.csv', index=False)
+
+
+#####################
+### Correct start ###
+#####################
+# This code splits up the care process of a patient into multiple care processes if there are gaps of more than 75 days between appointments.
+
+# Afspraken = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Afspraken_na_17_03_2017.csv', dtype = str)
+# Consulten = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Consulten_na_17_03_2017.csv', dtype = str)
+#
+# Consulten.DATETIME = pd.to_datetime(Consulten.DATETIME, format = "%Y-%m-%d %H:%M")
+# Afspraken.DATETIME = pd.to_datetime(Afspraken.DATETIME, format = "%Y-%m-%d %H:%M")
+#
+# Consulten = Consulten.sort_values(['PATIENTNUMBER', 'DATETIME'])
+# Afspraken = Afspraken.sort_values(['PATIENTNUMBER', 'DATETIME'])
+#
+# Consulten_Grouped = Consulten.groupby('PATIENTNUMBER')["DATETIME"].apply(list).reset_index(name='DATETIMES')
+# patientlistCons = list(Consulten_Grouped.PATIENTNUMBER)
+# consultenlist = list(Consulten_Grouped.DATETIMES)
+#
+# Afspraken_Grouped = Afspraken.groupby('PATIENTNUMBER')["DATETIME"].apply(list).reset_index(name='DATETIMES')
+# patientlist = list(Afspraken_Grouped.PATIENTNUMBER)
+# afsprakenlist = list(Afspraken_Grouped.DATETIMES)
+
+# AppList = [None]*len(consultenlist)
+# DateList = [None]*len(consultenlist)
+# for i in range(len(patientlistCons)):
+#     for j in range(len(patientlist)):
+#         if (patientlist[j] == patientlistCons[i]):
+#             days = (consultenlist[i][0] - afsprakenlist[j][0]).days
+#             k = 0
+#             while (days > 75):
+#                 k+=1
+#                 days = (consultenlist[i][0] - afsprakenlist[j][0+k]).days
+#                 if(days < 0):
+#                     k = k-1
+#             print(patientlist[j])
+#             print(days)
+#             AppList[i] = days
+#             DateList[i] = afsprakenlist[j][0+k]
+#
+# print(AppList)
+# print('Mean is:   ', PE.mean(AppList))
+# plt.hist(AppList, bins=20, color='#ffc9d7', ec='hotpink')
+# plt.show()
+#
+# data = {'PATIENTNUMBER': patientlistCons, 'DATETIME': DateList, 'DAYS': AppList}
+# Overzicht = pd.DataFrame(data, columns = ['PATIENTNUMBER','DATETIME','DAYS'])
+# Overzicht.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_first_appointments_75.csv', index=False)
+
+
+
+###################################
+### Links-censurering consulten ###
+###################################
+# Code that prints a histogram to inspect left censoring.
+
+# Consulten = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Consulten_BK.csv', dtype = str)
+#
+# Consulten.DATETIME = pd.to_datetime(Consulten.DATETIME, format = "%Y-%m-%d %H:%M")
+# Consulten = Consulten.sort_values(['PATIENTNUMBER', 'DATETIME'])
+#
+# Consulten_Grouped = Consulten.groupby('PATIENTNUMBER')["DATETIME"].apply(list).reset_index(name='DATETIMES')
+# patientlist = list(Consulten_Grouped.PATIENTNUMBER)
+# consultenlist = list(Consulten_Grouped.DATETIMES)
+#
+# IntervalList = []
+# for i in range(len(patientlist)):
+#     for j in range(1, len(consultenlist[i])):
+#         days = (consultenlist[i][j] - consultenlist[i][j-1]).days
+#         if (days < 500):
+#             IntervalList.append(days)
+#
+# plt.hist(IntervalList, bins=30, color='mediumturquoise', ec='darkcyan', density=True)
+# x = [0, 100]
+# y = [0.05, 0.05]
+# plt.plot(x, y, color='darkorange')
+# plt.show()
+
+###################################
+### Links-censurering afspraken ###
+###################################
+# The same as above, but for appointments instead of consultations.
+
+# Afspraken = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\borstkankerNew_Juiste_Afdelingen.csv', dtype = str)
+#
+# Afspraken.DATETIME = pd.to_datetime(Afspraken.DATETIME, format = "%Y-%m-%d %H:%M")
+# Afspraken = Afspraken.sort_values(['PATIENTNUMBER', 'DATETIME'])
+#
+# Afspraken_Grouped = Afspraken.groupby('PATIENTNUMBER')["DATETIME"].apply(list).reset_index(name='DATETIMES')
+# patientlist = list(Afspraken_Grouped.PATIENTNUMBER)
+# afsprakenlist = list(Afspraken_Grouped.DATETIMES)
+#
+# IntervalList = []
+# for i in range(len(patientlist)):
+#     for j in range(1, len(afsprakenlist[i])):
+#         days = (afsprakenlist[i][j] - afsprakenlist[i][j-1]).days
+#         if (days < 100):
+#             IntervalList.append(days)
+#
+# plt.hist(IntervalList, bins=30, color='mediumturquoise', ec='darkcyan', density=True)
+# x = [0, 100]
+# y = [0.05, 0.05]
+# plt.plot(x, y, color='darkorange')
+# plt.show()
+
+
+###################################
+### Links-censurering oplossing ###
+###################################
+# Creates a data set that takes into account the left censoring. (So patients with their 1st app after 17-03-2017)
+
+# Afspraken = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\borstkankerNew_Juiste_Afdelingen.csv', skiprows = 1, usecols=[1,2,3,4,5], names=['APPNUMBER','PATIENTNUMBER','AFDELING','CODE','DATETIME'], header = None, dtype = str)
+#
+# Afspraken.DATETIME = pd.to_datetime(Afspraken.DATETIME, format = "%Y-%m-%d %H:%M")
+# Afspraken = Afspraken.sort_values(['PATIENTNUMBER', 'DATETIME'])
+#
+# AfsprakenGrouped = Afspraken.groupby('PATIENTNUMBER')["DATETIME"].apply(list).reset_index(name='AFSPRAKEN')
+# print(AfsprakenGrouped)
+# patientlist = list(AfsprakenGrouped.PATIENTNUMBER)
+# afsprakenlist = list(AfsprakenGrouped.AFSPRAKEN)
+#
+# StartNa = pd.to_datetime("17-3-2017 00:00", format = "%d-%m-%Y %H:%M")
+#
+#
+# def BetweenDatesList(patientlist, afsprakenlist, lower):
+#     List = []
+#     for i in range(len(patientlist)):
+#         afsprakenlist[i] = sorted(afsprakenlist[i])
+#         print(afsprakenlist[i])
+#         if (afsprakenlist[i][0] >= lower):
+#             print("lower: ", lower, "; afspraak: ", afsprakenlist[i][0])
+#             List.append(patientlist[i])
+#     return List
+#
+# NaList = BetweenDatesList(patientlist, afsprakenlist, StartNa)
+#
+# def DropNotBetweenDates(Data, BetweenList, ip=True):
+#     todrop = []
+#     for i in range(len(Data)):
+#         if(Data.PATIENTNUMBER[i] not in BetweenList):
+#             todrop.append(i)
+#     if ip:
+#         Data.drop(todrop, inplace = ip)
+#         Data.reset_index(drop=True, inplace=ip)
+#     else: return Data.drop(todrop, inplace = ip)
+#
+# DropNotBetweenDates(Afspraken, NaList)
+#
+# Afspraken.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Afspraken_na_17_03_2017.csv')
+
+
+
+#################
+### Mortality ###
+#################
+# Filters the mortality data set.
+
+# Mortality = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\patientsMortality.csv', skiprows = 1, usecols=[1,2], names=['PATIENTNUMBER','DATETIME'], header = None, dtype = str)
+#
+# Mortality.sort_values("PATIENTNUMBER", inplace=True)
+# Mortality.drop_duplicates(inplace=True)
+#
+# Mortality.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\JBZ_Mortality.csv', index=False)
+
+
+
+###############################
+### Where are the doubles?? ###
+###############################
+# Searches for doubles within the Cox data set that give problems in the analysis.
+
+# COX = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_Aftercare.csv', dtype = str)
+#
+# COX["start"] = pd.to_numeric(COX["start"], downcast="float")
+# COX["stop"] = pd.to_numeric(COX["stop"], downcast="float")
+#
+# for i in range(len(COX.start)):
+#     if (float(COX.start[i]) >= float(COX.stop[i]) ):
+#         print("Patient:  ", COX.ID[i])
+#         print("start:  ", COX.start[i])
+#         print("stop:  ", COX.stop[i])
+#         print("PV:  ", COX.group[i])
+#         # if (COX.ID[i] == "5303118" or COX.ID[i] == "6351325" and COX.ID[i] == COX.ID[i+1]):
+#         #     COX.stop[i] = 0.25
+#         #     COX.start[i+1] = 0.25
+#         # elif(COX.ID[i] == "5303118" or COX.ID[i] == "6351325"):
+#         #     COX.stop[i] = 0.25
+#     elif (float(COX.start[i]) > float(COX.stop[i])):
+#         print("Patient:  ", COX.ID[i], "    Other Patient: ", COX.ID[i-1])
+#         print("start:  ", COX.start[i])
+#         print("stop:  ", COX.stop[i])
+#         print("PV:  ", COX.group[i])
+#         # if (COX.ID[i] != COX.ID[i-1]):
+#         #     COX.start[i] = 0
+#         # ceil = math.ceil(float(COX.start[i]))
+#         # diff = ceil - float(COX.start[i])
+#         # COX.stop[i] = str(ceil - 0.5*diff)
+# #
+# COX.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_Aftercare.csv', index=False)
+
+
+
+###############################
+### Where are the doubles?? ###
+###############################
+# Again looking for the doubles causing a problem in the Cox regression.
+
+# COX = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_BK_all_userinfo_ND_Groups.csv', dtype = str)
+#
+# def DropBetweenProcesses(Data, ip=True):
+#     todrop = []
+#     for i in range(1, len(Data.ID)):
+#         difference = (float(Data.ID[i]) - float(Data.ID[i-1]))
+#         print("start    ", float(Data.ID[i-1]))
+#         print("end    ",float(Data.ID[i]))
+#         print("difference", difference)
+#         print()
+#         if (difference >= 0.08 and difference <= 0.12):
+#             Data.stop[i-1] = float(Data.start[i-1]) + 0.5
+#
+# DropBetweenProcesses(COX)
+#
+# COX.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_BK_processend_removed.csv', index=False)
+
+
+########################
+### Take out doubles ###
+########################
+# Removes the dooubles that caused a problem.
+
+# COX = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_BK_all_userinfo_ND_Groups.csv', dtype = str)
+#
+# for i in range(len(COX.ID)-1):
+#     if (float(COX.start[i]) == float(COX.stop[i]) and COX.start[i+1] == "0"):
+#         COX.stop[i] = str(float(COX.stop[i]) + 0.25)
+#
+# COX.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_BK.csv', index=False)
+
+
+##############################################################################################################################
+### The next 4 sections were all parts of code to help Anna with information about the data and to perform t tests for her ###
+##############################################################################################################################
+
+###################
+### Vragen Anna ###
+###################
+
+# Afspraken = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Consulten_na_17_03_2017.csv', skiprows = 1, usecols=[1,2,3,4,5], names=['APPNUMBER','PATIENTNUMBER','AFDELING','CODE','DATETIME'], header = None, dtype = str)
+# AfsprakenBK = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Afspraken_na_17_03_2017.csv', skiprows = 1, usecols=[1,2,3,4,5], names=['APPNUMBER','PATIENTNUMBER','AFDELING','CODE','DATETIME'], header = None, dtype = str)
+# Leeftijd = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\patients_age.csv', skiprows = 1, usecols=[0,1], names=['PATIENTNUMBER','GEBDAT'], header = None, dtype = str)
+# Pathways = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Pathways_Mix_NoDoubles.csv', dtype = str)
+# FirstApp = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_first_appointments_75.csv', dtype = str)
+# Mortality = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\JBZ_Mortality.csv', dtype = str)
+#
+# FirstAppList = list(FirstApp.PATIENTNUMBER)
+# MortalityList = list(Mortality.PATIENTNUMBER)
+#
+# Set1 = set(list(Leeftijd.PATIENTNUMBER))
+# Set2 = set(Afspraken.PATIENTNUMBER)
+# ListIntersect = list(Set1.intersection(Set2))
+# Set3 = set(ListIntersect)
+# Set4 = Set2 - Set3
+# ListComplement = list(Set4)
+# print("length is: ", len(ListComplement))
+#
+# Set2BK = set(AfsprakenBK.PATIENTNUMBER)
+# ListIntersectBK = list(Set1.intersection(Set2))
+# Set3BK = set(ListIntersectBK)
+# Set4BK = Set2BK - Set3BK
+# ListComplementBK = list(Set4BK)
+# print("length is: ", len(ListComplementBK))
+#
+# DropInList2(Afspraken, ListComplement)
+# DropInList2(AfsprakenBK, ListComplementBK)
+# Afspraken["DATETIME"].replace('', np.nan, inplace=True)
+# Afspraken.dropna(subset=["DATETIME"], inplace=True)
+#
+# ListAnna = list(set(list(Afspraken.PATIENTNUMBER)))
+# print(ListAnna)
+# data = {'PATIENTNUMBER': ListAnna}
+# Overzicht = pd.DataFrame(data, columns = ['PATIENTNUMBER'])
+# Overzicht.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Anna.csv', index=False)
+
+
+#####################
+### Vragen Anna 2 ###
+#####################
+
+# AfsprakenNew = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Consulten_na_17_03_2017.csv', skiprows = 1, usecols=[1,2,3,4,5], names=['APPNUMBER','PATIENTNUMBER','AFDELING','CODE','DATETIME'], header = None, dtype = str)
+# #AfsprakenNew = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Afspraken_na_17_03_2017.csv', skiprows = 1, usecols=[1,2,3,4,5], names=['APPNUMBER','PATIENTNUMBER','AFDELING','CODE','DATETIME'], header = None, dtype = str)
+# Leeftijd = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\patients_age.csv', skiprows = 1, usecols=[0,1], names=['PATIENTNUMBER','GEBDAT'], header = None, dtype = str)
+# Pathways = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Pathways_Mix_NoDoubles.csv', dtype = str)
+# Anna = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Anna.csv', dtype = str)
+#
+# PathwaysNew = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Pathways_Mix_NoDoubles.csv', skiprows = 1, usecols=[0,1], names=['ID','PATIENTNUMBER'], header = None, dtype = str)
+# # AfsprakenNew = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\BK_Consulten_na_17_03_2017.csv', skiprows = 1, usecols=[2,5], names=['PATIENTNUMBER','DATETIME'], header = None, dtype = str)
+# #
+#
+# Set1 = set(list(Leeftijd.PATIENTNUMBER))
+# #Set1 = list(Set1)
+# print(Set1)
+# print(len(Set1))
+# Set2 = set(Anna.PATIENTNUMBER)
+# ListIntersect = list(Set1.intersection(Set2))
+# print(ListIntersect)
+# print("length is: ", len(ListIntersect))
+# Set3 = set(ListIntersect)
+# Set4 = Set2 - Set3
+# ListComplement = list(Set4)
+# print(ListComplement)
+# print("length is: ", len(ListComplement))
+#
+# DropInList2(Leeftijd, ListComplement)
+# DropInList2(Anna, ListComplement)
+#
+# AfsprakenNew.DATETIME = pd.to_datetime(AfsprakenNew.DATETIME, format = "%Y-%m-%d %H:%M")
+# Leeftijd.GEBDAT = pd.to_datetime(Leeftijd.GEBDAT, format = "%Y-%m-%d %H:%M:%S.%f")
+#
+#
+# AfsprakenNew = AfsprakenNew.sort_values(['PATIENTNUMBER', 'DATETIME'])
+#
+# AfsprakenGrouped = AfsprakenNew.groupby('PATIENTNUMBER')
+# Afspraken_Grouped = AfsprakenNew.groupby('PATIENTNUMBER')["DATETIME"].apply(list).reset_index(name='DATETIMES')
+# consultenlist = list(Afspraken_Grouped.DATETIMES)
+# PathwaysGrouped = PathwaysNew.groupby('PATIENTNUMBER')
+# AfsprakenNewList = pd.DataFrame(AfsprakenGrouped.nunique())
+# PatientList = list(AfsprakenNewList.index)
+# AppNumberList = list(AfsprakenNewList.DATETIME)
+# PathwaysNewList = pd.DataFrame(PathwaysGrouped.nunique())
+# PatientList2 = list(PathwaysNewList.index)
+# LoginsList = list(PathwaysNewList.ID)
+#
+# AnnaList = list(Anna.PATIENTNUMBER)
+# LeeftijdList = list(Leeftijd.PATIENTNUMBER)
+#
+# Patients = []
+# Apps = []
+# Logins = []
+# User = []
+# AGE = []
+# for i in range(len(PatientList)):
+#     if(PatientList[i] in AnnaList and not(PatientList[i] in PatientList2)):
+#         Patients.append(PatientList[i])
+#         Apps.append(AppNumberList[i])
+#         Logins.append('0')
+#         User.append("0")
+#         k = LeeftijdList.index(PatientList[i])
+#         age_lower = abs(relativedelta(consultenlist[i][0], Leeftijd.GEBDAT[k]).years)
+#         age_upper = abs(relativedelta(consultenlist[i][-1], Leeftijd.GEBDAT[k]).years)
+#         age = (age_upper + age_lower) / 2
+#         AGE.append(age)
+#     elif (PatientList[i] in AnnaList and (PatientList[i] in PatientList2)):
+#         for j in range(len(PatientList2)):
+#             if(PatientList[i] == PatientList2[j]):
+#                 Patients.append(PatientList[i])
+#                 Apps.append(AppNumberList[i])
+#                 Logins.append(LoginsList[j])
+#                 User.append("1")
+#                 k = LeeftijdList.index(PatientList[i])
+#                 age_lower = abs(relativedelta(consultenlist[i][0], Leeftijd.GEBDAT[k]).years)
+#                 age_upper = abs(relativedelta(consultenlist[i][-1], Leeftijd.GEBDAT[k]).years)
+#                 age = (age_upper + age_lower) / 2
+#                 AGE.append(age)
+#
+# data = {'Patientnummer': Patients, 'Aantal Afspraken': Apps, 'Aantal Logins': Logins, 'User': User, 'Leeftijd': AGE}
+# Overzicht = pd.DataFrame(data, columns = ['Patientnummer','Aantal Afspraken','Aantal Logins','User','Leeftijd'])
+# Overzicht.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Anna7.csv')
+#
+
+
+#####################
+### Vragen Anna 3 ###
+#####################
+
+# Anna = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Overview_Linear_Regression_inclMortality.csv', dtype = str)
+#
+# UserAge = []
+# NonUserAge = []
+# Logins = []
+#
+# for i in range(len(Anna.Patientnummer)):
+#     if (Anna.Gebruikersklasse[i] == "0"):
+#         NonUserAge.append(float(Anna.Leeftijd[i]))
+#     else :
+#         UserAge.append(float(Anna.Leeftijd[i]))
+#         Logins.append(float(Anna["Aantal logins"][i]))
+#
+# print("The set has ", len(Anna.Patientnummer), " patients")
+# UserMeanAge = PE.mean(UserAge)
+# print("Users have a mean age of: ", UserMeanAge)
+# UserSDAge = PE.stand_dev(UserAge)
+# print("UserAge has a stand dev of: ", UserSDAge)
+# NonUserMeanAge = PE.mean(NonUserAge)
+# print("Non-users have a mean age of: ", NonUserMeanAge)
+# NonUserSDAge = PE.stand_dev(NonUserAge)
+# print("NonUserAge has a stand dev of: ", NonUserSDAge)
+# MeanLogins = PE.mean(Logins)
+# print("The mean number of logins is: ", MeanLogins)
+# SDLogins = PE.stand_dev(Logins)
+# print("The stand dev of the number of logins is: ", SDLogins)
+
+
+# PathwaysNew = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Pathways_Mix_NoDoubles.csv', skiprows = 1, usecols=[0,1], names=['ID','PATIENTNUMBER'], header = None, dtype = str)
+# PathwaysNewList = pd.DataFrame(PathwaysGrouped.nunique())
+# PatientList2 = list(PathwaysNewList.index)
+# LoginsList = list(PathwaysNewList.ID)
+# for i in range(len(JOUWLIJST)):
+#     if (JOUWLIJST[i] in PatientList2):
+#         k = PatientList2.index(JOUWLIJST[i])
+#         # Het aantal logins is LoginsList[k]
+#     else:
+#         # Het aantal is natuurlijk 0
+
+
+####################
+### T toets Anna ###
+####################
+
+# Anna = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Anna3.csv', dtype = str)
+#
+# UserAge = []
+# NonUserAge = []
+# Logins = []
+#
+# for i in range(len(Anna.Patientnummer)):
+#     if (Anna.User[i] == "0"):
+#         NonUserAge.append(float(Anna.Leeftijd[i]))
+#     else :
+#         UserAge.append(float(Anna.Leeftijd[i]))
+#         Logins.append(float(Anna["Aantal Logins"][i]))
+#
+# print(scipy.stats.ttest_ind(UserAge, NonUserAge, equal_var=True))
+#
+# s_User = PE.stand_dev(UserAge)
+# s_NonUser = PE.stand_dev(NonUserAge)
+# print("s_User: ", s_User)
+# print("s_NonUser: ", s_NonUser)
+# print("Fraction: ", s_User/s_NonUser)
+#
+# n = len(UserAge)
+# m = len(NonUserAge)
+# print("n+m: ", n+m)
+# s_z = math.sqrt((s_User**2)/n + (s_NonUser**2)/m)
+# print("s_delta is: ", s_z)
+# s_z2 = ((n-1)*(s_User**2) + (m-1)*(s_NonUser**2))/(n+m-2)
+# print("s_z2: ", s_z2)
+#
+# mean_User = PE.mean(UserAge)
+# mean_NonUser = PE.mean(NonUserAge)
+#
+# print("mean_User: ", mean_User)
+# print("mean_NonUser: ", mean_NonUser)
+#
+# T = (mean_User - mean_NonUser)/(s_z)
+# # t_value = t.ppf(1-0.05/2, n+m)
+# t_value = 1.96
+#
+# if(t_value<T or T<-t_value):
+#     print("T=",T)
+#     print("t=",t_value)
+#     print("We verwerpen H0!")
+# else:
+#     print("T=", T)
+#     print("t=", t_value)
+#     print("We verwerpen H0 niet!")
+
+# s_User:  12.077039168069632
+# s_NonUser:  13.66426046635893
+# Fraction:  0.8838414049412335
+# n+m:  1283
+# s_delta is:  0.7547301581202817
+# s_z2:  173.66707274871086
+# mean_User:  57.31951219512195
+# mean_NonUser:  64.0979381443299
+# T= -8.981257574349732
+# t= 1.96
+# We verwerpen H0!
+
+
+
+##########################################
+### Gemiddeld aantal consulten 1e jaar ###
+##########################################
+# Prints the mean number of consultations a patient has in their first year.
+
+# Afspraken = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Consulten_BK.csv', dtype = str)
+# Afspraken.DATETIME = pd.to_datetime(Afspraken.DATETIME, format = "%Y-%m-%d %H:%M")
+# AfsprakenGrouped = Afspraken.groupby('PATIENTNUMBER')["DATETIME"].apply(list).reset_index(name='AFSPRAKEN')
+# print(AfsprakenGrouped)
+# patientlist = list(AfsprakenGrouped.PATIENTNUMBER)
+# afsprakenlist = list(AfsprakenGrouped.AFSPRAKEN)
+# StartVoor = pd.to_datetime("1-1-2020 00:00", format = "%d-%m-%Y %H:%M")
+#
+# PathwaysNew = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Pathways_Mix_NoDoubles.csv', skiprows = 1, usecols=[0,1], names=['ID','PATIENTNUMBER'], header = None, dtype = str)
+# PathwaysGrouped = PathwaysNew.groupby('PATIENTNUMBER')
+# PathwaysNewList = pd.DataFrame(PathwaysGrouped.nunique())
+# PatientList2 = list(PathwaysNewList.index)
+# LoginsList = list(PathwaysNewList.ID)
+#
+# def MeanNrConsults(StartVoor):
+#     NrOfPatients = 0
+#     MeanTotal = 0
+#     for i in range(len(patientlist)):
+#         afsprakenlist[i] = sorted(afsprakenlist[i])
+#         if (afsprakenlist[i][0] < StartVoor):
+#             NrOfPatients += 1
+#             j = 0
+#             Total = 0
+#             while (j < len(afsprakenlist[i]) and abs(relativedelta(afsprakenlist[i][0], afsprakenlist[i][j]).years) == 0):
+#                 Total += 1
+#                 j += 1
+#             print(Total)
+#             MeanTotal += Total
+#     return MeanTotal/NrOfPatients
+#
+# print("Het gemiddelde aantal consulten in het 1e jaar van een patient is: ", MeanNrConsults(StartVoor))
+
+
+
+
+##############################################################################################################
+### The next 3 sections were to inspect the effects of pathway variant 51, as it gave questionable results ###
+##############################################################################################################
+
+
+##########################
+### Pathway Variant 51 ###
+##########################
+
+# Anna = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Anna3.csv', dtype = str)
+#
+# Saved_Pathways = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\AnalyticsDataCompleet.csv', skiprows = 1, usecols=[1,5,11], names=['PATIENTNUMBER','PATHWAYVARIANTID','DATE'], header = None, dtype = str)
+#
+# Saved_Pathways = Saved_Pathways.sort_values(['PATIENTNUMBER', 'DATE'])
+#
+# List1 = list(Saved_Pathways.PATIENTNUMBER)
+# Set1 = set(List1)
+# #Set1 = list(Set1)
+# print(Set1)
+# print(len(Set1))
+# List2 = list(Anna.Patientnummer)
+# Set2 = set(List2)
+# ListIntersect = list(Set1.intersection(Set2))
+# print(ListIntersect)
+# print("length is: ", len(ListIntersect))
+# Set3 = set(ListIntersect)
+# Set4 = Set2 - Set3
+# ListComplement = list(Set4)
+# print(ListComplement)
+# if ("0041193" in ListIntersect):
+#     print("kut")
+# if ("0041193" in ListComplement):
+#     print("Huh")
+# print("length is: ", len(ListComplement))
+#
+# print("1: ", len(Anna.Patientnummer))
+# DropInList4(Anna, ListComplement)
+# print("2: ", len(Anna.Patientnummer))
+#
+#
+# Saved_Pathways_Grouped = Saved_Pathways.groupby('PATIENTNUMBER')["PATHWAYVARIANTID"].apply(list).reset_index(name='PATHWAYS')
+# print(Saved_Pathways_Grouped)
+# patientlist = list(Saved_Pathways_Grouped.PATIENTNUMBER)
+# afsprakenlist = list(Saved_Pathways_Grouped.PATHWAYS)
+#
+# List3 = list(Anna.Patientnummer)
+#
+# GROUP = []
+# for i in range(len(List3)):
+#     j = patientlist.index(List3[i])
+#     if ("9" in afsprakenlist[j]): #"1" in afsprakenlist[j]
+#         GROUP.append("9")
+#     elif ("8" in afsprakenlist[j]):
+#         GROUP.append("8")
+#     elif ("6" in afsprakenlist[j]):
+#         GROUP.append("6")
+#     elif ("5" in afsprakenlist[j]):
+#         GROUP.append("5")
+#     elif ("53" in afsprakenlist[j]):
+#         GROUP.append("53")
+#     elif ("52" in afsprakenlist[j]):
+#         GROUP.append("52")
+#     elif ("51" in afsprakenlist[j]):
+#         GROUP.append("51")
+#     elif ("50" in afsprakenlist[j]):
+#         GROUP.append("50")
+#     elif ("1" in afsprakenlist[j]):
+#         GROUP.append("1")
+#     elif ("33" in afsprakenlist[j]):
+#         GROUP.append("33")
+#     # if (afsprakenlist[j][-1] == "1"): #"1" in afsprakenlist[j]
+#     #     GROUP.append("1")
+#     # if (afsprakenlist[j][-1] == "5"):
+#     #     GROUP.append("5")
+#     # if (afsprakenlist[j][-1] == "6"):
+#     #     GROUP.append("6")
+#     # if (afsprakenlist[j][-1] == "8"):
+#     #     GROUP.append("8")
+#     # if (afsprakenlist[j][-1] == "9"):
+#     #     GROUP.append("9")
+#     # if (afsprakenlist[j][-1] == "33"):
+#     #     GROUP.append("33")
+#     # if (afsprakenlist[j][-1] == "50"):
+#     #     GROUP.append("50")
+#     # if (afsprakenlist[j][-1] == "51"):
+#     #     GROUP.append("51")
+#     # if (afsprakenlist[j][-1] == "52"):
+#     #     GROUP.append("52")
+#     # if (afsprakenlist[j][-1] == "53"):
+#     #     GROUP.append("53")
+#
+# print(len(GROUP))
+# Anna["group"] = GROUP
+#
+# Anna.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\PV51_Bekijken.csv')
+
+
+#######################
+### PV 51 continued ###
+#######################
+
+# PV51 = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\PV51_Bekijken.csv', dtype = str)
+# Consulten = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\Consulten_BK.csv', dtype = str)
+#
+# AfsprakenGrouped = Consulten.groupby('PATIENTNUMBER')
+# AfsprakenNewList = pd.DataFrame(AfsprakenGrouped.nunique())
+# PatientList = list(AfsprakenNewList.index)
+# AppNumberList = list(AfsprakenNewList.DATETIME)
+#
+# Apps = ["0"]*len(PV51.Patientnummer)
+# for i in range(len(PV51.Patientnummer)):
+#     for j in range(len(PatientList)):
+#         if(PV51.Patientnummer[i] == PatientList[j]):
+#             Apps[i] = AppNumberList[j]
+#
+# PV51["Aantal Consulten"] = Apps
+# PV51.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\PV51_met_cons.csv')
+
+
+#################
+### Plot PV51 ###
+#################
+#
+# PV51 = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\PV51_met_cons.csv', dtype = str)
+#
+# def FilterPathway(Data, PV, ip=True):
+#     todrop = []
+#     for i in range(len(Data)):
+#         if (Data.group[i] != PV):
+#             todrop.append(i)
+#     if ip:
+#         Data.drop(todrop, inplace=ip)
+#         Data.reset_index(drop=True, inplace=ip)
+#     else:
+#         return Data.drop(todrop, inplace=ip)
+#
+# FilterPathway(PV51, "51")
+#
+# def FilterUse(Data, Use, ip=True):
+#     todrop = []
+#     for i in range(len(Data)):
+#         if (Data.User[i] != Use):
+#             todrop.append(i)
+#     if ip:
+#         Data.drop(todrop, inplace=ip)
+#         Data.reset_index(drop=True, inplace=ip)
+#     else:
+#         return Data.drop(todrop, inplace=ip)
+#
+# FilterUse(PV51, "1")
+# print("nr of patients: ", len(PV51.Patientnummer))
+#
+# COX = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_BK_biggerstop.csv', dtype = str)
+#
+# List = list(map(float, list(PV51["Aantal Afspraken"])))
+#
+#
+#
+# plt.hist(List, bins=15, color="#f9bec7", ec="#ff99ac", alpha=0.8, density=True)
+# # plt.hist(List, bins=15, color="paleturquoise", ec="darkturquoise", alpha=0.8, density=True)
+# plt.title("Histogram number of appointments users PV51")
+# plt.xlabel("Number of appointments")
+# plt.ylabel("Count")
+# plt.show()
+
+# 7 and 84
+
+###############################
+### PLOT ANDERSEN-GILL DATA ###
+###############################
+# This function makes plots to illustrate the way the data is viewed during Andersen-Gill analysis.
+
+# COX = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_BK_biggerstop.csv', dtype = str)
+
+def FilterPathway(Data, PV, ip=True):
+    todrop = []
+    for i in range(len(Data)):
+        if (Data.group[i] != PV):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace=ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else:
+        return Data.drop(todrop, inplace=ip)
+
+def FilterUse(Data, ip=True):
+    userlist = []
+    for j in range(len(Data.ID)):
+        if (Data.globaluser[j] == "1"):
+            userlist.append(Data.ID[j])
+    todrop = []
+    for i in range(len(Data.ID)):
+        if (Data.ID[i] not in userlist):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace=ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else:
+        return Data.drop(todrop, inplace=ip)
+
+def FilterDrop(Data, ip=True):
+    todrop = []
+    for i in range(len(Data)):
+        if (Data.Drop[i] == "1"):
+            todrop.append(i)
+    if ip:
+        Data.drop(todrop, inplace=ip)
+        Data.reset_index(drop=True, inplace=ip)
+    else:
+        return Data.drop(todrop, inplace=ip)
+
+# # FilterDrop(COX)
+# FilterPathway(COX, "51")
+# # FilterUse(COX)
+# Patientlist = list(set(list(COX.ID)))
+# print(Patientlist)
+# STOP = [float(i) for i in list(COX.stop)]
+# for i in range(0, int(len(Patientlist)/2)):  #int(len(Patientlist)/2)
+#     x = [0]
+#     y = [i]
+#     k = 0
+#     for j in range(len(COX.ID)):
+#         if (Patientlist[i] == COX.ID[j]):
+#             if(j >= 0 and COX.globaluser[j] == "1"):
+#                 k = 1
+#             if(j > 0 and COX.globaluser[j] == "1" and COX.ID[j-1] == Patientlist[i] and COX.globaluser[j-1] == "0"):
+#                 plt.scatter(x,y, color="paleturquoise", ec="darkturquoise", alpha=0.5)
+#                 plt.plot(x,y, color="paleturquoise")
+#                 x = [x[-1]]
+#                 y = [i]
+#                 k = 1
+#             x.append(STOP[j])
+#             y.append(i)
+#     if (k == 0):
+#         plt.scatter(x, y, color="paleturquoise", ec="darkturquoise", alpha=0.5)
+#         plt.plot(x, y, color="paleturquoise")
+#     else:
+#         plt.scatter(x, y, color="#f9bec7", ec="#ff99ac", alpha=0.5)
+#         plt.plot(x, y, color="#f9bec7")
+# blue_patch = mpatches.Patch(color='paleturquoise', ec='darkturquoise', label='non-user')
+# pink_patch = mpatches.Patch(color='#f9bec7', ec='#ff99ac', label='user')
+# plt.legend(handles=[blue_patch, pink_patch])
+# plt.title('Andersen-Gill model 1st half PV51')
+# plt.xlabel('Days')
+# plt.ylabel('Patient')
+# plt.show()
+
+
+##################
+### REMOVE ONE ###
+##################
+# Adds column to the Cox overview that equals 1 if the care process only contained 1 consultation and 0 otherwise.
+
+# COX = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_BK_biggerstop.csv', dtype = str)
+#
+# DropList = ["0"]*len(COX.ID)
+# for i in range(2, len(COX.ID)-1):
+#     if(COX.ID[i] == COX.ID[i-1] and COX.ID[i] != COX.ID[i-2] and COX.ID[1] != COX.ID[i+1]):
+#         DropList[i] = "1"
+#         DropList[i-1] = "1"
+#
+# COX["Drop"] = DropList
+# COX.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Without_Singles.csv')
+
+
+###############################
+### WITHOUT AFTERCARE SPLIT ###
+###############################
+# This code makes a new Cox overview where only the non-aftercare patients have their care processes split up if the gap it has gaps of more than 75 days.
+
+# COX = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_BK_biggerstop.csv', dtype = str)
+# COX2 = pd.read_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_Overview_Aftercare.csv', dtype = str)
+#
+# def FilterPathwayList(Data, PV, ip=True):
+#     todrop = []
+#     for i in range(len(Data)):
+#         if (Data.group[i] not in PV):
+#             todrop.append(i)
+#     if ip:
+#         Data.drop(todrop, inplace=ip)
+#         Data.reset_index(drop=True, inplace=ip)
+#     else:
+#         return Data.drop(todrop, inplace=ip)
+#
+# FilterPathwayList(COX, ["1", "5", "6", "8", "9", "50"])
+# FilterPathwayList(COX2, ["51", "52", "53"])
+#
+# Result = COX.append(COX2)
+# Result.to_csv(r'C:\Users\peerc\Documents\Uni\Scriptie+Stage\Files\JBZ data\COX_FIANAL.csv')
+
+###########################
