@@ -1,0 +1,192 @@
+## Initialize
+
+rm(list = ls()); cat("\014")    
+
+##LINEAR REGRESSION##
+
+## Read data
+Data      <- read.csv(file = 'Overview_Linear_Regression_inclMortality.csv')
+head(Data)
+str(Data)
+
+## Only run following line when only wanting to look at patients that did not pass away during the timespan of the data.
+Data <- Data[-which(Data$Mortality == "1"),]
+
+## Prints information about the data
+hist(Data$Aantal.afspraken)
+print(mean(Data$Aantal.afspraken))
+print(median(Data$Aantal.afspraken))
+
+## Only perform following line when wanting to remove patients with not intesive care processes. This was used to inspect bias
+Data <- Data[-which(as.integer(Data$Aantal.afspraken) <= 20),]
+
+## Creates different covariates for the linear regression
+Cons  <- Data$Aantal.consulten
+GK <- Data$Gebruikersklasse
+PV1 <- Data$Zorgpad1
+PV5 <- Data$Zorgpad5
+PV6 <- Data$Zorgpad6
+PV8 <- Data$Zorgpad8
+PV9 <- Data$Zorgpad9
+PV50 <- Data$Zorgpad50
+PV51 <- Data$Zorgpad51
+PV52 <- Data$Zorgpad52
+PV53 <- Data$Zorgpad53
+Age <- Data$Leeftijd
+Doorloop <- Data$Doorloop
+GK1311 <- Data$Gebruikersklasse1311
+Art <- Data$GebruikersklasseArticle
+CL <- Data$GebruikersklasseChecklist
+NotCons <- Data$Aantal.afspraken - Cons
+Lengte <- Data$Lengte.traject
+Fraction <- Cons/(Data$Aantal.afspraken)
+Mort <- Data$Mortality
+
+## Prints histogram of the number of non-consultations and the length of the care process.
+hist(NotCons)
+hist(Lengte)
+
+## Devides the patients into groups based on their pathway variant ID. This was done because of the smaller sample size.
+Group1 <- PV1
+Group2 <- PV5 + PV9
+Group3 <- PV6 + PV8
+Group4 <- PV50
+Group5 <- PV51 + PV52 + PV53
+
+## Turn user class into a factor
+G.f <- factor(GK)
+
+## Perform linear regression
+fit <- lm(log(Cons+1) ~ G.f + Group2 + Group3 + Group4 + Group5 + Age + NotCons + Mort)
+summary(fit)
+
+
+## Prints information about the different pathway variants and groups
+print(sum(Group1))
+print(sum(Group1*GK))
+print(sum(Group2))
+print(sum(Group2*GK))
+print(sum(Group3))
+print(sum(Group3*GK))
+print(sum(Group4))
+print(sum(Group4*GK))
+print(sum(Group5))
+print(sum(Group5*GK))
+
+print(sum(PV1))
+print(sum(PV1*GK))
+print(sum(PV5))
+print(sum(PV5*GK))
+print(sum(PV6))
+print(sum(PV6*GK))
+print(sum(PV8))
+print(sum(PV8*GK))
+print(sum(PV9))
+print(sum(PV9*GK))
+print(sum(PV50))
+print(sum(PV50*GK))
+print(sum(PV51))
+print(sum(PV51*GK))
+print(sum(PV52))
+print(sum(PV52*GK))
+print(sum(PV53))
+print(sum(PV53*GK))
+
+
+
+## Below are the results for the different linear regressions performed for the thesis:
+
+##########################################
+# IF AANTAL AFSPRAKEN NO RESTRICTION #####
+##########################################
+# Call:
+#   lm(formula = log(Cons + 1) ~ GK + Group2 + Group3 + Group4 + 
+#        Group5 + Age + NotCons)
+# 
+# Residuals:
+#   Min       1Q   Median       3Q      Max 
+# -2.06475 -0.28557  0.01753  0.38137  1.37169 
+# 
+# Coefficients:
+#   Estimate Std. Error t value Pr(>|t|)    
+# (Intercept)  2.028067   0.154032  13.166  < 2e-16 ***
+#   GK           0.147165   0.049394   2.979 0.003011 ** 
+#   Group2       0.611683   0.106457   5.746 1.49e-08 ***
+#   Group3       0.457810   0.098474   4.649 4.15e-06 ***
+#   Group4       0.356221   0.103362   3.446 0.000610 ***
+#   Group5      -0.072576   0.063541  -1.142 0.253855    
+#   Age         -0.006794   0.001914  -3.550 0.000417 ***
+#   NotCons      0.050668   0.003228  15.696  < 2e-16 ***
+#   ---
+#   Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+# 
+# Residual standard error: 0.5552 on 568 degrees of freedom
+# Multiple R-squared:  0.6046,	Adjusted R-squared:  0.5997 
+# F-statistic:   124 on 7 and 568 DF,  p-value: < 2.2e-16
+#########################################################
+
+
+
+
+##########################################
+# IF AANTAL AFSPRAKEN > 25 ###############
+##########################################
+# Call:
+#   lm(formula = log(Cons) ~ GK + Group2 + Group3 + Group4 + Group5 + 
+#        Age + NotCons)
+# 
+# Residuals:
+#   Min       1Q   Median       3Q      Max 
+# -1.78468 -0.25212  0.02781  0.26255  1.36444 
+# 
+# Coefficients:
+#   Estimate Std. Error t value Pr(>|t|)    
+# (Intercept)  3.195303   0.148179  21.564  < 2e-16 ***
+#   GK          -0.030673   0.044008  -0.697  0.48625    
+# Group2       0.373177   0.087483   4.266 2.53e-05 ***
+#   Group3       0.443024   0.082719   5.356 1.50e-07 ***
+#   Group4       0.182206   0.084518   2.156  0.03174 *  
+#   Group5      -0.180603   0.064841  -2.785  0.00562 ** 
+#   Age         -0.009812   0.001784  -5.500 7.07e-08 ***
+#   NotCons      0.020028   0.002897   6.913 2.07e-11 ***
+#   ---
+#   Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+# 
+# Residual standard error: 0.4086 on 372 degrees of freedom
+# Multiple R-squared:  0.5219,	Adjusted R-squared:  0.5129 
+# F-statistic: 58.02 on 7 and 372 DF,  p-value: < 2.2e-16
+
+
+################################################
+
+
+
+##########################################
+# IF AANTAL AFSPRAKEN > 39 ###############
+##########################################
+# Call:
+#   lm(formula = log(Cons) ~ GK + Group2 + Group3 + Group4 + Group5 + 
+#        Age + NotCons)
+# 
+# Residuals:
+#   Min       1Q   Median       3Q      Max 
+# -0.85455 -0.22477  0.00676  0.21557  1.19913 
+# 
+# Coefficients:
+#   Estimate Std. Error t value Pr(>|t|)    
+# (Intercept)  3.640596   0.158912  22.910  < 2e-16 ***
+#   GK          -0.073816   0.043568  -1.694   0.0916 .  
+# Group2       0.075177   0.093124   0.807   0.4204    
+# Group3       0.204402   0.089092   2.294   0.0227 *  
+#   Group4       0.015422   0.092895   0.166   0.8683    
+# Group5      -0.138961   0.088958  -1.562   0.1197    
+# Age         -0.008369   0.001865  -4.486 1.16e-05 ***
+#   NotCons      0.012012   0.002622   4.582 7.66e-06 ***
+#   ---
+#   Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+# 
+# Residual standard error: 0.3157 on 224 degrees of freedom
+# Multiple R-squared:  0.3299,	Adjusted R-squared:  0.3089 
+# F-statistic: 15.75 on 7 and 224 DF,  p-value: < 2.2e-16
+
+###########################################################
